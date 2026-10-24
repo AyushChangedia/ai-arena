@@ -1,0 +1,11 @@
+{
+  "label": "docs-example",
+  "status": 503,
+  "body": {
+    "error": {
+      "code": 503,
+      "message": "No available model provider that meets your routing requirements",
+      "metadata": {}
+    }
+  }
+}

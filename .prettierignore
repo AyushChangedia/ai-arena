@@ -1,0 +1,10 @@
+pnpm-lock.yaml
+public-data/
+**/.next/
+**/coverage/
+**/test-results/
+**/playwright-report/
+SPEC.md
+CLAUDE.md
+apps/web/src/fonts/
+apps/web/test-results/

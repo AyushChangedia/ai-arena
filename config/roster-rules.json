@@ -1,0 +1,88 @@
+{
+  "$comment": "How `pnpm engine roster` picks each slot from OpenRouter's /api/v1/models (SPEC §3.2). Patterns are regular expressions over model IDs; the newest matching model wins, and a dated variant of it is preferred. Aliases (~...-latest), :free, :batch and preview builds are excluded because they can change the serving model without notice.",
+  "slots": {
+    "openai": {
+      "shortCode": "GPT",
+      "color": "#5AB8F0",
+      "tiers": {
+        "budget": ["^openai/gpt-\\d+(\\.\\d+)?-mini(-\\d{4}-\\d{2}-\\d{2})?$"],
+        "flagship": ["^openai/gpt-\\d+(\\.\\d+)?(-\\d{4}-\\d{2}-\\d{2})?$"]
+      },
+      "alternatives": []
+    },
+    "anthropic": {
+      "shortCode": "CLD",
+      "color": "#B39DFF",
+      "tiers": {
+        "budget": [
+          "^anthropic/claude-haiku-\\d+(\\.\\d+)?(-\\d{8})?$",
+          "^anthropic/claude-\\d+(\\.\\d+)?-haiku(-\\d{8})?$"
+        ],
+        "flagship": [
+          "^anthropic/claude-opus-\\d+(\\.\\d+)?(-\\d{8})?$",
+          "^anthropic/claude-\\d+(\\.\\d+)?-opus(-\\d{8})?$"
+        ]
+      },
+      "alternatives": []
+    },
+    "google": {
+      "shortCode": "GEM",
+      "color": "#F48FC1",
+      "tiers": {
+        "budget": ["^google/gemini-\\d+(\\.\\d+)?-flash(-\\d{3}|-\\d{8})?$"],
+        "flagship": ["^google/gemini-\\d+(\\.\\d+)?-pro(-\\d{3}|-\\d{8})?$"]
+      },
+      "alternatives": []
+    },
+    "meta": {
+      "shortCode": "MSP",
+      "color": "#2EC4C4",
+      "tiers": {
+        "budget": ["^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?$"],
+        "flagship": ["^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?$"]
+      },
+      "alternatives": [
+        {
+          "label": "Llama 4 Maverick (older, cheap, a deliberate underdog)",
+          "pattern": "^meta-llama/llama-4-maverick(-\\d+)?$",
+          "shortCode": "LMA"
+        }
+      ]
+    },
+    "deepseek": {
+      "shortCode": "DSK",
+      "color": "#E6C88A",
+      "tiers": {
+        "budget": [
+          "^deepseek/deepseek-v\\d+(\\.\\d+)?(-flash|-chat)?(-\\d{4})?$",
+          "^deepseek/deepseek-chat(-v\\d+(\\.\\d+)?)?(-\\d{4})?$"
+        ],
+        "flagship": [
+          "^deepseek/deepseek-v\\d+(\\.\\d+)?-pro(-\\d{4})?$",
+          "^deepseek/deepseek-r\\d+(-\\d{4})?$"
+        ]
+      },
+      "alternatives": []
+    }
+  },
+  "exclude": [
+    "^~",
+    ":free$",
+    ":batch$",
+    ":extended$",
+    ":thinking$",
+    ":online$",
+    "preview",
+    "-exp",
+    "image",
+    "audio",
+    "search",
+    "-lite",
+    "-nano",
+    "contributor"
+  ],
+  "benchmarks": {
+    "index": { "displayName": "Nifty 50", "shortCode": "NIF", "color": "#F2F5F9" },
+    "monkey": { "displayName": "Monkey (random)", "shortCode": "MKY", "color": "#9CA0B0" }
+  }
+}

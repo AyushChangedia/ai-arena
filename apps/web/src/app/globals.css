@@ -1,0 +1,135 @@
+@import 'tailwindcss';
+
+/* Design tokens (SPEC §16.1). Colour lives here and nowhere else. */
+:root {
+  --bg: #0d1a2b;
+  --surface: #142338;
+  --surface-2: #1b2d46;
+  --line: #263a56;
+  --text: #f2f5f9;
+  --text-2: #93a4ba;
+  --accent: #ffb648;
+  --gain: #3ddc97;
+  --loss: #ff6b6b;
+  --radius-chip: 6px;
+  --radius-panel: 10px;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-accent: var(--accent);
+  --color-gain: var(--gain);
+  --color-loss: var(--loss);
+  --font-sans: var(--font-archivo), var(--font-archivo-ext), ui-sans-serif, system-ui, sans-serif;
+  /* Type scale 1.25 from 16px: 13, 16, 20, 25, 31, 39, 49 */
+  --text-xs: 0.8125rem;
+  --text-sm: 0.8125rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.5625rem;
+  --text-2xl: 1.9375rem;
+  --text-3xl: 2.4375rem;
+  --text-4xl: 3.0625rem;
+  --radius-chip: 6px;
+  --radius-panel: 10px;
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    line-height: 1.5;
+    font-size: 1rem;
+    min-height: 100vh;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  a {
+    color: inherit;
+    text-underline-offset: 3px;
+  }
+}
+
+@layer components {
+  /* Every number uses tabular figures (SPEC §16.6). */
+  .num,
+  table,
+  time {
+    font-variant-numeric: tabular-nums;
+  }
+  .num {
+    white-space: nowrap;
+  }
+
+  /* Condensed width for the scoreboard feel: score bug, big numbers, round reveal. */
+  .condensed {
+    font-stretch: 75%;
+  }
+
+  .prose-measure {
+    max-width: 72ch;
+  }
+
+  .link {
+    text-decoration: underline;
+    text-decoration-color: var(--line);
+  }
+  .link:hover {
+    text-decoration-color: var(--text-2);
+  }
+
+  /* Model output is plain text with line breaks preserved (SPEC §2.3.4). */
+  .model-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .scorebug {
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .scorebug::-webkit-scrollbar {
+    display: none;
+  }
+  .scorebug > * {
+    scroll-snap-align: start;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.reveal-row {
+  animation: reveal-in 240ms ease-out both;
+}

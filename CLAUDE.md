@@ -41,7 +41,7 @@ Live checks (Angel One, OpenRouter, production Neon, Telegram, Healthchecks) run
 
 ```
 pnpm install
-pnpm check            # typecheck + lint + unit + property tests + guard checks
+pnpm check            # format + typecheck + lint + unit + property tests + guard checks
 pnpm test:int         # integration tests (needs local Postgres or the CI service)
 pnpm test:e2e         # Playwright + axe
 pnpm doctor           # configuration and live-service checks

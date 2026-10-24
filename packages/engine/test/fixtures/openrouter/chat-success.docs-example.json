@@ -1,0 +1,33 @@
+{
+  "label": "docs-example",
+  "status": 200,
+  "body": {
+    "id": "gen-docs-example-0001",
+    "provider": "OpenAI",
+    "model": "openai/gpt-5.4-mini",
+    "object": "chat.completion",
+    "created": 1761300000,
+    "choices": [
+      {
+        "logprobs": null,
+        "finish_reason": "stop",
+        "native_finish_reason": "stop",
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "{\"reasoning\":\"IT held up while banks slipped.\",\"actions\":[{\"side\":\"BUY\",\"symbol\":\"TCS\",\"quantity\":2,\"why\":\"Relative strength.\"}],\"note_to_self\":\"Watch TCS.\"}",
+          "refusal": null,
+          "reasoning": null
+        }
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 5821,
+      "completion_tokens": 912,
+      "total_tokens": 6733,
+      "cost": 0.004982,
+      "prompt_tokens_details": { "cached_tokens": 0 },
+      "completion_tokens_details": { "reasoning_tokens": 640 }
+    }
+  }
+}

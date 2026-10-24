@@ -1,0 +1,5 @@
+{
+  "label": "docs-example",
+  "status": 502,
+  "body": { "error": { "code": 502, "message": "Provider returned error", "metadata": {} } }
+}

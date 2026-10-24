@@ -1,0 +1,44 @@
+{
+  "$comment": "Equity delivery charges, discount-broker profile (SPEC §11.5). Rates are exact fractions. Re-verify against the sources and update verifiedOn.",
+  "profile": "discount_broker_equity_delivery",
+  "verifiedOn": null,
+  "verificationNote": "Values copied from SPEC §11.5 (broker charge pages as of October 2026). Not re-verified: broker sites were unreachable from the build environment. See SETUP.md.",
+  "charges": {
+    "brokerage": { "rate": { "num": 0, "den": 1 }, "appliesTo": "both", "label": "Brokerage" },
+    "stt": {
+      "rate": { "num": 1, "den": 1000 },
+      "appliesTo": "both",
+      "label": "Securities transaction tax (STT)"
+    },
+    "exchange": {
+      "rate": { "num": 297, "den": 10000000 },
+      "appliesTo": "both",
+      "label": "NSE transaction charge"
+    },
+    "sebi": {
+      "rate": { "num": 1, "den": 1000000 },
+      "appliesTo": "both",
+      "label": "SEBI turnover fee"
+    },
+    "ipft": { "rate": { "num": 1, "den": 1000000 }, "appliesTo": "both", "label": "IPFT (NSE)" },
+    "stamp": { "rate": { "num": 3, "den": 20000 }, "appliesTo": "buy", "label": "Stamp duty" }
+  },
+  "gst": {
+    "rate": { "num": 18, "den": 100 },
+    "on": ["brokerage", "exchange", "sebi", "ipft"],
+    "label": "GST"
+  },
+  "dpCharge": {
+    "paisePerSymbolPerDay": "1593",
+    "label": "DP charge",
+    "note": "Per stock, on the first sell of that stock each day. Varies by broker."
+  },
+  "sources": [
+    { "label": "Zerodha charges", "url": "https://zerodha.com/charges/" },
+    { "label": "Angel One charges", "url": "https://www.angelone.in/exchange-transaction-charges" },
+    {
+      "label": "NSE transaction charges",
+      "url": "https://www.nseindia.com/trade/platform-services-transaction-charges"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@arena/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@arena/db": "workspace:*",
+    "@arena/shared": "workspace:*",
+    "luxon": "^3.7.2",
+    "otpauth": "^9.5.2",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.6",
+    "@types/pg": "^8.23.1"
+  }
+}

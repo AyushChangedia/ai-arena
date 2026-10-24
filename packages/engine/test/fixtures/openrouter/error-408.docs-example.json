@@ -1,0 +1,5 @@
+{
+  "label": "docs-example",
+  "status": 408,
+  "body": { "error": { "code": 408, "message": "Request timed out", "metadata": {} } }
+}

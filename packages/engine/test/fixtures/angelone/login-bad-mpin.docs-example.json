@@ -1,0 +1,9 @@
+{
+  "label": "docs-example",
+  "body": {
+    "status": false,
+    "message": "Invalid Email Or Password",
+    "errorcode": "AB1000",
+    "data": null
+  }
+}

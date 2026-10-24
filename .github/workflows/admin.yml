@@ -1,0 +1,99 @@
+name: admin
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: Admin command (SPEC §18.1)
+        type: choice
+        required: true
+        options:
+          [pause, resume, retire, corp-action, clear-flag, resolve-incident, start-season, correct]
+      reason:
+        description: Why (written to the public admin log)
+        required: true
+      slot:
+        description: retire — participant slot (openai, anthropic, google, meta, deepseek)
+        required: false
+      symbol:
+        description: corp-action / clear-flag / correct — NSE symbol
+        required: false
+      type:
+        description: corp-action — split, bonus or dividend
+        required: false
+      ratio:
+        description: corp-action — split or bonus ratio, e.g. 2:1
+        required: false
+      amount:
+        description: corp-action — dividend in rupees per share, e.g. 11.50
+        required: false
+      ex_date:
+        description: corp-action — ex-date YYYY-MM-DD
+        required: false
+      source:
+        description: corp-action — source URL (NSE/BSE announcement)
+        required: false
+      id:
+        description: resolve-incident — incident id; start-season — season id (S0, S1 …)
+        required: false
+      start:
+        description: start-season — first trading day YYYY-MM-DD
+        required: false
+      mode:
+        description: start-season — shadow or live
+        required: false
+      ref_seq:
+        description: correct — ledger seq being corrected
+        required: false
+      cash_delta:
+        description: correct — cash change in rupees (negative allowed)
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: tick
+  cancel-in-progress: false
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ARENA_MODE: ${{ vars.ARENA_MODE }}
+      IN_COMMAND: ${{ inputs.command }}
+      IN_REASON: ${{ inputs.reason }}
+      IN_SLOT: ${{ inputs.slot }}
+      IN_SYMBOL: ${{ inputs.symbol }}
+      IN_TYPE: ${{ inputs.type }}
+      IN_RATIO: ${{ inputs.ratio }}
+      IN_AMOUNT: ${{ inputs.amount }}
+      IN_EX_DATE: ${{ inputs.ex_date }}
+      IN_SOURCE: ${{ inputs.source }}
+      IN_ID: ${{ inputs.id }}
+      IN_START: ${{ inputs.start }}
+      IN_MODE: ${{ inputs.mode }}
+      IN_REF_SEQ: ${{ inputs.ref_seq }}
+      IN_CASH_DELTA: ${{ inputs.cash_delta }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: run the admin command
+        run: |
+          args=("$IN_COMMAND" --reason "$IN_REASON")
+          [ -n "$IN_SLOT" ] && args+=(--slot "$IN_SLOT")
+          [ -n "$IN_SYMBOL" ] && args+=(--symbol "$IN_SYMBOL")
+          [ -n "$IN_TYPE" ] && args+=(--type "$IN_TYPE")
+          [ -n "$IN_RATIO" ] && args+=(--ratio "$IN_RATIO")
+          [ -n "$IN_AMOUNT" ] && args+=(--amount "$IN_AMOUNT")
+          [ -n "$IN_EX_DATE" ] && args+=(--ex-date "$IN_EX_DATE")
+          [ -n "$IN_SOURCE" ] && args+=(--source "$IN_SOURCE")
+          [ -n "$IN_ID" ] && args+=(--id "$IN_ID")
+          [ -n "$IN_START" ] && args+=(--start "$IN_START")
+          [ -n "$IN_MODE" ] && args+=(--mode "$IN_MODE")
+          [ -n "$IN_REF_SEQ" ] && args+=(--ref-seq "$IN_REF_SEQ")
+          [ -n "$IN_CASH_DELTA" ] && args+=(--cash-delta "$IN_CASH_DELTA")
+          pnpm admin "${args[@]}"

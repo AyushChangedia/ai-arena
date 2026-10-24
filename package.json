@@ -1,0 +1,48 @@
+{
+  "name": "ai-arena",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter web typecheck",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run --project unit",
+    "test:coverage": "vitest run --project unit --coverage",
+    "test:int": "vitest run --project integration",
+    "test:e2e": "pnpm --filter web test:e2e",
+    "guards": "tsx scripts/guards/run.ts",
+    "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm guards",
+    "doctor": "tsx packages/engine/src/cli.ts doctor",
+    "engine": "tsx packages/engine/src/cli.ts",
+    "admin": "tsx packages/engine/src/cli.ts admin",
+    "verify-ledger": "tsx packages/engine/src/cli.ts verify-ledger",
+    "db:migrate": "tsx packages/db/src/migrate.ts",
+    "test:browser": "vitest run --project browser",
+    "build:web": "pnpm --filter web build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@playwright/test": "1.63.0",
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "5.0.5",
+    "esbuild": "^0.25.12",
+    "eslint": "^10.13.0",
+    "fast-check": "^4.10.2",
+    "globals": "^16.0.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "5.0.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

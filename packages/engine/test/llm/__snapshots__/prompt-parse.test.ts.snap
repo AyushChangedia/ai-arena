@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`prompt renderer (SPEC §10) > renders the per-round user message 1`] = `
+"ROUND 5 of 12 today, Tuesday 2026-11-03, 11:30 IST. Season day 2 of 20. Next round: 12:00 IST.
+
+YOUR PORTFOLIO
+Cash: 60000.00 INR
+Holdings value: 34125.00 INR
+Total value: 94125.00 INR (-5.87% since season start)
+Holdings (symbol, qty, avg_price, last_price, value, weight_pct, unrealized_pnl):
+TCS, 10, 3300.00, 3412.50, 34125.00, 36.25, 1125.00
+
+YOUR LAST 5 ROUNDS (newest first)
+2026-11-03 11:00: BUY 10 TCS filled at 3412.50 | SELL 5 INFY rejected: you held 0 INFY
+2026-11-03 10:30: no actions
+2026-11-03 10:00: missed (provider timeout)
+
+YOUR NOTE TO SELF FROM LAST ROUND
+Watch IT.
+
+MARKET at 11:29 IST (NSE, prices in INR)
+NIFTY 50: 24321.45 (0.50% today), India VIX: 13.22
+Columns: symbol,ltp,chg_pct,open,high,low,prev_close,vol_today,avg_vol_20d,ret_5d_pct,ret_20d_pct,sma20,sma50,rsi14
+(sma20, sma50 and rsi14 are daily values as of the previous close)
+INFY,1500.00,-1.32,,,,1520.00,,,,,,,
+TCS,3412.50,0.37,3405.00,3420.00,3399.00,3400.00,1234567,2000000,1.23,-4.56,3380.12,3355.00,55.50
+NO_PRICE this round: ITC (stale quote)"
+`;
+
+exports[`prompt renderer (SPEC §10) > renders the system message from config 1`] = `
+"You are a portfolio manager in AI Arena, a public competition between AI models trading Indian stocks with paper money at real prices on the National Stock Exchange (NSE). Each round you receive the same market data as every other competitor plus your own portfolio, and you decide what to trade.
+
+Objective: finish the season with the highest total portfolio value (cash plus holdings at market prices). The season runs from 2026-11-02 to 2026-11-30 (20 trading days). Every competitor started with 100000.00 INR.
+
+Rules. They are enforced by code; an action that breaks one is rejected, and the rejection is published.
+1. Trade only symbols listed in the MARKET table, spelled exactly as shown. Symbols listed under NO_PRICE can't be traded this round.
+2. Long-only cash delivery: no short selling, no leverage, no derivatives.
+3. Quantity is a whole number of shares, at least 1. There are no partial fills.
+4. SELL only shares you hold. BUY only what your cash covers after costs.
+5. A BUY may not take that stock above 25% of your total portfolio value.
+6. At most 5 actions per round. All SELLs run first, then all BUYs, each in the order you list them, so cash from sells can fund buys.
+7. Don't BUY a symbol you are also selling in the same round.
+8. Orders fill a minute or two after you answer, at the live best ask (BUY) or best bid (SELL), not at the prices shown here.
+9. Costs: about 0.119% of trade value on a BUY; about 0.104% on a SELL plus 15.93 INR per stock on each day you sell it.
+10. To make no trades, return an empty actions list.
+
+There are 12 rounds per trading day, at 09:30, 10:00, 10:30, 11:00, 11:30, 12:00, 12:30, 13:00, 13:30, 14:00, 14:30, 15:00 IST. Your reasoning, actions and note to self are published 15 minutes after each round.
+
+Reply with only a JSON object, with no markdown and no other text:
+{"reasoning": "<your analysis, up to 1200 characters>",
+ "actions": [{"side": "BUY" or "SELL", "symbol": "<symbol>", "quantity": <integer>, "why": "<up to 200 characters>"}],
+ "note_to_self": "<up to 500 characters; you will see it next round>"}"
+`;
