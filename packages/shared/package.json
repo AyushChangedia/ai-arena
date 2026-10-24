@@ -1,0 +1,19 @@
+{
+  "name": "@arena/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./money": "./src/money.ts",
+    "./format": "./src/format.ts",
+    "./canonical": "./src/canonical.ts",
+    "./ledger-hash": "./src/ledger-hash.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./errors": "./src/errors.ts",
+    "./codes": "./src/codes.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

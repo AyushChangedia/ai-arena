@@ -1,0 +1,66 @@
+{
+  "$comment": "Arena rules (SPEC §3). The engine enforces these and /rules renders them. Edit here, never in code.",
+  "timezone": "Asia/Kolkata",
+  "startingCashPaise": "10000000",
+  "product": "long_only_delivery",
+  "schedule": {
+    "firstSlot": "09:30",
+    "lastSlot": "15:00",
+    "everyMinutes": 30,
+    "graceMinutes": 20,
+    "preMarketWindow": { "from": "08:30", "to": "09:25" },
+    "endOfDayAfter": "15:40",
+    "valuationAt": "15:42",
+    "staleRunningMinutes": 15,
+    "decisionDeadlineSeconds": 360
+  },
+  "limits": {
+    "maxActionsPerRound": 5,
+    "maxWeightPct": 25,
+    "slippageBps": 5,
+    "maxInvalidQuotesPerSnapshot": 5,
+    "maxQuoteAgeMinutes": 5,
+    "maxDailyMovePct": 20,
+    "gapGuardPct": 15
+  },
+  "season": {
+    "tradingDays": 20,
+    "publicDelayMinutes": 15
+  },
+  "publishFullMarketTable": "after_close",
+  "marketData": {
+    "provider": "angelone",
+    "quoteBatchSize": 50,
+    "quoteRequestsPerSecond": 1,
+    "candleRequestsPerSecond": 2,
+    "historyTradingDays": 60,
+    "indexName": "Nifty 50",
+    "vixName": "India VIX"
+  },
+  "llm": {
+    "temperature": 0.3,
+    "reasoningEffort": "medium",
+    "maxTokens": 4000,
+    "timeoutSeconds": 120,
+    "retryDelaysSeconds": [2, 6],
+    "creditWarnUsd": 3,
+    "creditCriticalUsd": 1,
+    "budgetCapMultiplier": 1.5,
+    "estimate": {
+      "inputTokensPerCall": 6000,
+      "outputTokensPerCall": 1500,
+      "roundsPerMonth": 252
+    }
+  },
+  "display": {
+    "reasoningDisplayChars": 1200,
+    "whyDisplayChars": 200,
+    "noteToSelfMaxChars": 500
+  },
+  "simplifications": [
+    "Cash from a sale can be used again in the same round. Real delivery trades settle a day later.",
+    "Cash dividends are credited on the ex-date for shares held at the previous close.",
+    "Each charge is rounded to the nearest paisa per order. Real contract notes round some charges, such as STT, to the rupee, so a real broker's costs can differ by about a rupee per order.",
+    "Orders fill in full at the best bid or ask in the fill snapshot. Real orders can move the price or fill in parts."
+  ]
+}
