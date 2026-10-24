@@ -11,7 +11,8 @@
     "./ledger-hash": "./src/ledger-hash.ts",
     "./schemas": "./src/schemas/index.ts",
     "./errors": "./src/errors.ts",
-    "./codes": "./src/codes.ts"
+    "./codes": "./src/codes.ts",
+    "./metrics": "./src/metrics.ts"
   },
   "dependencies": {
     "zod": "^4.6.7"

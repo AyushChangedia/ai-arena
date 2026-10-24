@@ -1,6 +1,6 @@
 # Progress
 
-Current phase: 5 — Web app
+Current phase: 6 — Hardening and launch
 Last updated: 2026-10-24 22:45 IST
 
 ## Build mode
@@ -23,7 +23,7 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 - [x] Phase 2 — Core engine logic
 - [x] Phase 3 — LLM layer (roster generation + live decide-all → SETUP.md)
 - [x] Phase 4 — Rounds, scheduling and the shadow season (3 real shadow days + replay of real rounds → SETUP.md "verify after setup")
-- [ ] Phase 5 — Web app
+- [x] Phase 5 — Web app (real S0 data, Vercel deploy, design approval and live revalidation timing → SETUP.md)
 - [ ] Phase 6 — Hardening and launch
 
 ## Done (verified)
@@ -64,6 +64,11 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 - Escalation after 3 consecutive provider misses opens a separate critical incident `llm:down:<slot>` next to the warning `llm:transient:<slot>` (found and fixed by a test: the first version never sent the critical alert).
 - Export/anchor commit: tick.yml uploads `public-data/` as an artifact (1-day retention; it is public data) and a separate `commit` job with `contents: write` commits it to `vars.DATA_BRANCH` or the default branch, then records the commit SHA in `anchors.commit_sha`. Not run yet (needs GitHub).
 - Healthchecks, Telegram and revalidation calls are covered by tests with stubbed fetch only.
+- Monkey colour changed from SPEC §16.1's slate #93A4BA to #9CA0B0 (config/roster-rules.json): the spec colour was 14.1 (OpenAI sky) and 11.3 (Anthropic lavender) CIEDE2000 from other series, under the required 15. #9CA0B0 is ≥ 16.5 from every series and ≥ 3:1 on --bg. Recorded as SPEC asks ("adjust and record").
+- Fonts: Archivo (OFL) variable font, axes trimmed with fontTools to weight 400–700 and width 75–100 (55 KB woff2), plus a 1.2 KB subset carrying ₹ from Archivo's latin-ext file; static Bold Condensed TTF instances for next/og. ▲/▼ come from the system font. Licence in apps/web/src/fonts/OFL-Archivo.txt.
+- 404s: malformed IDs/slugs return a real 404 from `src/proxy.ts` (no database call). A well-formed ID that doesn't exist (or isn't revealed yet) gets the site's 404 page with noindex but HTTP 200, because Next.js 16 streams notFound() after the shell (documented framework behaviour).
+- Pages are prerendered when the database is reachable at build time; if a read fails, that render is cached for seconds only (`cacheLife('seconds')`), so an outage is never baked in.
+- Not verified live: Vercel deployment, Neon serverless driver against real Neon (the local tests use node-postgres for localhost URLs), on-demand revalidation timing on Vercel ("a revealed round appears within one tick"), Lighthouse on real hardware/network, OG image rendering on Vercel.
 - Golden fee cases were computed by hand from the SPEC §11.5 rates, not checked against a broker's online calculator (broker sites unreachable from the build environment). SETUP.md has a verify-after-setup item. GST is applied to the unrounded sum of its base charges, then rounded once.
 - Rejection-code choices where SPEC §11.3 is open to reading: a SELL of a symbol not held is UNKNOWN_SYMBOL with detail "Tried to sell 40 HDFCBANK, held 0"; CONFLICTING_SIDES considers SELLs that passed shape checks; a quantity above 2,147,483,647 is INVALID_QUANTITY ("too large").
 - Corporate-action ratios are new-for-old (split 2:1 doubles shares; bonus 1:2 adds one share per two held). Fractional entitlements are dropped (to be disclosed on /rules).
@@ -74,4 +79,4 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
 ## Next
 
-- Phase 5: Next.js web app (tokens, every page in SPEC §16.3, charts, states, round reveal, /verify with in-browser checks, share images, /rules from config, /status), revalidation endpoint, Playwright + axe suites against a seeded *_test database.
+- Phase 6: security headers + CSP, revalidation rate limit (done in Phase 5; verify), README (how it works, verify the ledger, runbooks, architecture), copy pass, disclaimers, SETUP.md in final order, open the PR.

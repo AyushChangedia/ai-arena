@@ -6,3 +6,5 @@ public-data/
 **/playwright-report/
 SPEC.md
 CLAUDE.md
+apps/web/src/fonts/
+apps/web/test-results/

@@ -76,7 +76,10 @@ export function checkNoMock(files: SourceFile[]): Violation[] {
     if (!isScannedSource(f.path) || isTestPath(f.path)) continue;
     f.content.split('\n').forEach((text, i) => {
       for (const m of text.matchAll(importRe)) {
-        if (/(^|\/)test(\/|$)/.test(m[1] ?? ''))
+        const spec = m[1] ?? '';
+        // Only file paths count (relative or absolute); package names like @playwright/test are not test directories.
+        const isPath = spec.startsWith('.') || spec.startsWith('/');
+        if (isPath && /(^|\/)test(\/|$)/.test(spec))
           v.push({ guard: 'no-test-imports', path: f.path, line: i + 1, text: text.trim() });
       }
     });

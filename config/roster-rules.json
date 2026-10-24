@@ -83,6 +83,6 @@
   ],
   "benchmarks": {
     "index": { "displayName": "Nifty 50", "shortCode": "NIF", "color": "#F2F5F9" },
-    "monkey": { "displayName": "Monkey (random)", "shortCode": "MKY", "color": "#93A4BA" }
+    "monkey": { "displayName": "Monkey (random)", "shortCode": "MKY", "color": "#9CA0B0" }
   }
 }

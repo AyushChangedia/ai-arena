@@ -31,6 +31,20 @@ describe('guard: no mock data (SPEC §19.6)', () => {
     ]);
     expect(v[0]?.guard).toBe('no-test-imports');
   });
+  it('does not mistake package names for test directories', () => {
+    expect(
+      checkNoMock([
+        {
+          path: 'apps/web/playwright.config.ts',
+          content: "import { defineConfig } from '@playwright/test';",
+        },
+      ]),
+    ).toEqual([]);
+    expect(
+      checkNoMock([{ path: 'apps/web/src/a.ts', content: "import x from '/abs/test/fixture';" }])[0]
+        ?.guard,
+    ).toBe('no-test-imports');
+  });
   it('recognises test paths', () => {
     expect(isTestPath('packages/engine/test/a.ts')).toBe(true);
     expect(isTestPath('packages/engine/src/latest.ts')).toBe(false);

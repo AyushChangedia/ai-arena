@@ -7,7 +7,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm --filter web typecheck",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -22,7 +22,8 @@
     "admin": "tsx packages/engine/src/cli.ts admin",
     "verify-ledger": "tsx packages/engine/src/cli.ts verify-ledger",
     "db:migrate": "tsx packages/db/src/migrate.ts",
-    "test:browser": "vitest run --project browser"
+    "test:browser": "vitest run --project browser",
+    "build:web": "pnpm --filter web build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
