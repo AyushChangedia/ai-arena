@@ -9,8 +9,15 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: ['packages/*/test/**/*.test.ts', 'scripts/**/test/**/*.test.ts'],
-          exclude: ['**/*.int.test.ts', '**/node_modules/**'],
+          exclude: ['**/*.int.test.ts', '**/*.browser.test.ts', '**/node_modules/**'],
           testTimeout: 30_000,
+        },
+      },
+      {
+        test: {
+          name: 'browser',
+          include: ['packages/*/test/**/*.browser.test.ts'],
+          testTimeout: 60_000,
         },
       },
       {

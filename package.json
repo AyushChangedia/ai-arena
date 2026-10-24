@@ -21,12 +21,15 @@
     "engine": "tsx packages/engine/src/cli.ts",
     "admin": "tsx packages/engine/src/cli.ts admin",
     "verify-ledger": "tsx packages/engine/src/cli.ts verify-ledger",
-    "db:migrate": "tsx packages/db/src/migrate.ts"
+    "db:migrate": "tsx packages/db/src/migrate.ts",
+    "test:browser": "vitest run --project browser"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",
+    "@playwright/test": "1.63.0",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "5.0.5",
+    "esbuild": "^0.25.12",
     "eslint": "^10.13.0",
     "fast-check": "^4.10.2",
     "globals": "^16.0.0",

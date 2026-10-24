@@ -1,6 +1,6 @@
 # Progress
 
-Current phase: 2 — Core engine logic
+Current phase: 3 — LLM layer
 Last updated: 2026-10-24 22:45 IST
 
 ## Build mode
@@ -20,7 +20,7 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 
 - [x] Phase 0 — Foundations
 - [x] Phase 1 — Database and market data (live acceptance checks → SETUP.md "verify after setup")
-- [ ] Phase 2 — Core engine logic
+- [x] Phase 2 — Core engine logic
 - [ ] Phase 3 — LLM layer
 - [ ] Phase 4 — Rounds, scheduling and the shadow season
 - [ ] Phase 5 — Web app
@@ -55,10 +55,14 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 - Angel One request headers X-ClientLocalIP / X-ClientPublicIP / X-MACAddress are sent as fixed placeholder values (the official SDK also hardcodes them). Not verified against the live API.
 - Instrument master URL (`config/arena.json` marketData.instrumentMasterUrl) is the long-standing angelbroking.com address; not reachable from the build environment, not verified.
 - config/universe/nifty50.json and config/calendar/nse-2026.json are NOT committed: niftyindices.com and nseindia.com were unreachable from the build environment. `pnpm run doctor` reports both missing; SETUP.md has the download + import steps.
+- Golden fee cases were computed by hand from the SPEC §11.5 rates, not checked against a broker's online calculator (broker sites unreachable from the build environment). SETUP.md has a verify-after-setup item. GST is applied to the unrounded sum of its base charges, then rounded once.
+- Rejection-code choices where SPEC §11.3 is open to reading: a SELL of a symbol not held is UNKNOWN_SYMBOL with detail "Tried to sell 40 HDFCBANK, held 0"; CONFLICTING_SIDES considers SELLs that passed shape checks; a quantity above 2,147,483,647 is INVALID_QUANTITY ("too large").
+- Corporate-action ratios are new-for-old (split 2:1 doubles shares; bonus 1:2 adds one share per two held). Fractional entitlements are dropped (to be disclosed on /rules).
+- The parser adds a `missing_note_to_self` flag next to SPEC's `missing_reasoning`, and `note_truncated` when the note is cut to 500 characters.
 - Engine-wide coverage (unit + integration, `COVERAGE_SCOPE=all`) is 85% lines / 78% branches after Phase 1; target 80%. The gap is CLI glue for live services; to be closed before the PR.
 - Additions beyond SPEC §14/§15, flagged: `seasons.system_prompt` (the round page shows the shared system prompt), `arena_state.publish_market_table` (lets the v_market_tables view apply the arena.json policy), ledger entry type `CORRECTION` (SPEC §11.7/§18.1 ask for adjusting entries but §11.7's type list has none), extra public views `v_seasons`, `v_holdings`, `v_admin_log`, `v_symbol_flags` (needed by /, /models and /status), extra smoke.yml choice `roster` (public model list, no secret).
 - Migrations use a small runner (`packages/db/src/migrate.ts`) over committed SQL files instead of drizzle-kit's migrator, because the triggers, roles and views are hand-written SQL. The Drizzle schema is kept in sync by a test.
 
 ## Next
 
-- Phase 2: fees, validator, executor, positions, ledger chain builder, marks/metrics, benchmarks + Monkey, corporate actions, prompt renderer, output parser; property tests; browser hash check.
+- Phase 3: OpenRouter client (timeout/retry/classification), capability discovery, `engine roster`, structured outputs, repair attempt, model identity check, budget caps, cost capture, `engine decide`, smoke decide-all.
