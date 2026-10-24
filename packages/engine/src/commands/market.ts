@@ -85,6 +85,7 @@ export async function importHolidays(args: ParsedArgs): Promise<number> {
     downloadedOn: flagString(args, 'downloaded-on') ?? todayIst(),
   });
   const out = join(configDir(), 'calendar', `nse-${year}.json`);
+  mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, `${JSON.stringify(cal, null, 2)}\n`);
   process.stdout.write(`Wrote ${out}: ${cal.holidays.length} holidays.\n`);
   return 0;
