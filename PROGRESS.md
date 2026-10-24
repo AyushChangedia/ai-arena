@@ -1,6 +1,6 @@
 # Progress
 
-Current phase: 1 — Database and market data
+Current phase: 2 — Core engine logic
 Last updated: 2026-10-24 22:45 IST
 
 ## Build mode
@@ -19,7 +19,7 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 ## Phases
 
 - [x] Phase 0 — Foundations
-- [ ] Phase 1 — Database and market data
+- [x] Phase 1 — Database and market data (live acceptance checks → SETUP.md "verify after setup")
 - [ ] Phase 2 — Core engine logic
 - [ ] Phase 3 — LLM layer
 - [ ] Phase 4 — Rounds, scheduling and the shadow season
@@ -50,7 +50,15 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 - Node 24: the build environment has Node 22.22; CI pins Node 24 via `.nvmrc`/`NODE_VERSION`. `engines` allows >=22.12 so local runs work.
 - `pnpm doctor` is a pnpm built-in command (pnpm 10), so it shadows our script. The script is `pnpm run doctor`. SPEC §7.3 and CLAUDE.md say `pnpm doctor`; flagged here as a SPEC difference.
 - gitleaks runs only in CI (no binary in the build environment).
+- Phase 1 live acceptance (Angel One login from a GitHub runner, 50/50 symbols mapped, ≥45 valid quotes with depth in market hours, closed-market path, 60+ daily bars per symbol) needs secrets and market hours: listed in SETUP.md as "verify after setup". Not verified.
+- docs-example fixtures to replace after the first `smoke.yml → record-fixtures` run (all reconstructed from SmartAPI documentation because smartapi.angelone.in was unreachable from the build environment): `packages/engine/test/fixtures/angelone/login-success.docs-example.json`, `login-invalid-totp.docs-example.json`, `login-bad-mpin.docs-example.json`, `session-invalid-token.docs-example.json`, `quote-full.docs-example.json`, `candles-one-day.docs-example.json`, `scrip-master-rows.docs-example.json`. Error code AB1050 for an invalid TOTP is from memory of the docs; the code also matches any message containing "totp".
+- Angel One request headers X-ClientLocalIP / X-ClientPublicIP / X-MACAddress are sent as fixed placeholder values (the official SDK also hardcodes them). Not verified against the live API.
+- Instrument master URL (`config/arena.json` marketData.instrumentMasterUrl) is the long-standing angelbroking.com address; not reachable from the build environment, not verified.
+- config/universe/nifty50.json and config/calendar/nse-2026.json are NOT committed: niftyindices.com and nseindia.com were unreachable from the build environment. `pnpm run doctor` reports both missing; SETUP.md has the download + import steps.
+- Engine-wide coverage (unit + integration, `COVERAGE_SCOPE=all`) is 85% lines / 78% branches after Phase 1; target 80%. The gap is CLI glue for live services; to be closed before the PR.
+- Additions beyond SPEC §14/§15, flagged: `seasons.system_prompt` (the round page shows the shared system prompt), `arena_state.publish_market_table` (lets the v_market_tables view apply the arena.json policy), ledger entry type `CORRECTION` (SPEC §11.7/§18.1 ask for adjusting entries but §11.7's type list has none), extra public views `v_seasons`, `v_holdings`, `v_admin_log`, `v_symbol_flags` (needed by /, /models and /status), extra smoke.yml choice `roster` (public model list, no secret).
+- Migrations use a small runner (`packages/db/src/migrate.ts`) over committed SQL files instead of drizzle-kit's migrator, because the triggers, roles and views are hand-written SQL. The Drizzle schema is kept in sync by a test.
 
 ## Next
 
-- Phase 1: Drizzle schema + SQL migrations, roles, views, Angel One provider, quote validation, calendar/universe loaders, snapshots, migrate.yml, smoke.yml.
+- Phase 2: fees, validator, executor, positions, ledger chain builder, marks/metrics, benchmarks + Monkey, corporate actions, prompt renderer, output parser; property tests; browser hash check.

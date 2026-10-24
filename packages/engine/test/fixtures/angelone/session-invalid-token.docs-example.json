@@ -1,0 +1,5 @@
+{
+  "label": "docs-example",
+  "status": 403,
+  "body": { "message": "Invalid Token", "errorcode": "AG8001", "status": false, "data": null }
+}

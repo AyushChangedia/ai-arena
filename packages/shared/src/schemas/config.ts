@@ -51,6 +51,9 @@ export const arenaConfigSchema = z
         historyTradingDays: z.number().int().min(50),
         indexName: z.string().min(1),
         vixName: z.string().min(1),
+        instrumentMasterUrl: z.string().url(),
+        apiRoot: z.string().url(),
+        requestTimeoutSeconds: z.number().int().min(1),
       })
       .strict(),
     llm: z

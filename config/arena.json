@@ -8,7 +8,10 @@
     "lastSlot": "15:00",
     "everyMinutes": 30,
     "graceMinutes": 20,
-    "preMarketWindow": { "from": "08:30", "to": "09:25" },
+    "preMarketWindow": {
+      "from": "08:30",
+      "to": "09:25"
+    },
     "endOfDayAfter": "15:40",
     "valuationAt": "15:42",
     "staleRunningMinutes": 15,
@@ -35,7 +38,10 @@
     "candleRequestsPerSecond": 2,
     "historyTradingDays": 60,
     "indexName": "Nifty 50",
-    "vixName": "India VIX"
+    "vixName": "India VIX",
+    "instrumentMasterUrl": "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json",
+    "apiRoot": "https://apiconnect.angelone.in",
+    "requestTimeoutSeconds": 20
   },
   "llm": {
     "temperature": 0.3,

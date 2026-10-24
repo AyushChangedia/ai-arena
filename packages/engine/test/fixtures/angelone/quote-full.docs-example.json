@@ -1,0 +1,54 @@
+{
+  "label": "docs-example",
+  "request": { "mode": "FULL", "exchangeTokens": { "NSE": ["3045"] } },
+  "body": {
+    "status": true,
+    "message": "SUCCESS",
+    "errorcode": "",
+    "data": {
+      "fetched": [
+        {
+          "exchange": "NSE",
+          "tradingSymbol": "SBIN-EQ",
+          "symbolToken": "3045",
+          "ltp": 571.8,
+          "open": 568.75,
+          "high": 568.75,
+          "low": 567.05,
+          "close": 566.5,
+          "lastTradeQty": 46,
+          "exchFeedTime": "21-Mar-2023 18:15:09",
+          "exchTradeTime": "21-Mar-2023 15:29:59",
+          "netChange": 5.3,
+          "percentChange": 0.94,
+          "avgPrice": 571.75,
+          "tradeVolume": 1755361,
+          "opnInterest": 0,
+          "lowerCircuit": 509.9,
+          "upperCircuit": 623.15,
+          "totBuyQuan": 0,
+          "totSellQuan": 0,
+          "52WeekLow": 430.7,
+          "52WeekHigh": 629.55,
+          "depth": {
+            "buy": [
+              { "price": 571.8, "quantity": 2075, "orders": 2 },
+              { "price": 0, "quantity": 0, "orders": 0 },
+              { "price": 0, "quantity": 0, "orders": 0 },
+              { "price": 0, "quantity": 0, "orders": 0 },
+              { "price": 0, "quantity": 0, "orders": 0 }
+            ],
+            "sell": [
+              { "price": 0, "quantity": 0, "orders": 0 },
+              { "price": 0, "quantity": 0, "orders": 0 },
+              { "price": 0, "quantity": 0, "orders": 0 },
+              { "price": 0, "quantity": 0, "orders": 0 },
+              { "price": 0, "quantity": 0, "orders": 0 }
+            ]
+          }
+        }
+      ],
+      "unfetched": []
+    }
+  }
+}

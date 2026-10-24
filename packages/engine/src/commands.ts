@@ -2,6 +2,12 @@ import type { ParsedArgs } from './ops/args';
 import { runDoctor, renderDoctor } from './ops/doctor';
 import { serviceChecks } from './ops/service-checks';
 import { writeStepSummary } from './ops/summary';
+import {
+  snapshotDry,
+  importUniverse,
+  importHolidays,
+  recordAngelFixtures,
+} from './commands/market';
 
 export interface Command {
   help: string;
@@ -18,5 +24,21 @@ export const commands: Record<string, Command> = {
       writeStepSummary(md);
       return ok ? 0 : 1;
     },
+  },
+  snapshot: {
+    help: '--dry: log in to Angel One, fetch and validate quotes, print a table. No DB writes.',
+    run: snapshotDry,
+  },
+  'import-universe': {
+    help: '--csv <file> --effective-from YYYY-MM-DD: write config/universe/nifty50.json',
+    run: importUniverse,
+  },
+  'import-holidays': {
+    help: '--year YYYY --file <json|csv>: write config/calendar/nse-YYYY.json',
+    run: importHolidays,
+  },
+  'record-fixtures': {
+    help: '[--out dir]: record sanitised Angel One responses (smoke.yml)',
+    run: recordAngelFixtures,
   },
 };

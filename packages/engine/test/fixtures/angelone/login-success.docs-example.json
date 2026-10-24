@@ -1,0 +1,13 @@
+{
+  "label": "docs-example",
+  "body": {
+    "status": true,
+    "message": "SUCCESS",
+    "errorcode": "",
+    "data": {
+      "jwtToken": "docs-example-placeholder-jwt",
+      "refreshToken": "docs-example-placeholder-refresh",
+      "feedToken": "docs-example-placeholder-feed"
+    }
+  }
+}
