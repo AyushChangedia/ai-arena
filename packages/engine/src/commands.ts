@@ -2,6 +2,14 @@ import type { ParsedArgs } from './ops/args';
 import { runDoctor, renderDoctor } from './ops/doctor';
 import { serviceChecks } from './ops/service-checks';
 import { rosterCommand, decideCommand } from './commands/llm';
+import {
+  tickCommand,
+  replayCommand,
+  reconcileCommand,
+  verifyLedgerCommand,
+  anchorCommitCommand,
+  adminCommand,
+} from './commands/ops';
 import { writeStepSummary } from './ops/summary';
 import {
   snapshotDry,
@@ -45,6 +53,27 @@ export const commands: Record<string, Command> = {
   decide: {
     help: '--participant <slot|all> --dry: real prompt, real model call, validated answer. No ledger writes.',
     run: decideCommand,
+  },
+  tick: { help: '[--dry] [--manual]: the scheduled entry point (SPEC §12.1)', run: tickCommand },
+  replay: {
+    help: '--round <id|random> [--count n]: recompute stored rounds and compare ledger hashes',
+    run: replayCommand,
+  },
+  reconcile: {
+    help: '[--season id] [--date YYYY-MM-DD]: rebuild from the ledger and compare',
+    run: reconcileCommand,
+  },
+  'verify-ledger': {
+    help: '[--file ledger.jsonl] [--prev-hash h]: verify a hash chain',
+    run: verifyLedgerCommand,
+  },
+  'anchor-commit': {
+    help: '--date YYYY-MM-DD[,..] --sha <commit>: record the git commit of an anchor',
+    run: anchorCommitCommand,
+  },
+  admin: {
+    help: '<pause|resume|retire|corp-action|clear-flag|resolve-incident|start-season|correct>',
+    run: adminCommand,
   },
   'record-fixtures': {
     help: '[--out dir]: record sanitised Angel One responses (smoke.yml)',

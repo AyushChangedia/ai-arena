@@ -14,7 +14,7 @@ import {
   loadRosterRules,
   loadUniverse,
   requireEnv,
-  CONFIG_DIR,
+  configDir,
 } from '../config/load';
 import { OpenRouterClient } from '../llm/openrouter';
 import { proposeRoster, rosterTable, type Tier } from '../llm/roster';
@@ -62,7 +62,7 @@ export async function rosterCommand(args: ParsedArgs): Promise<number> {
   }
   const out =
     flagString(args, 'out') ??
-    (args.flags.write === true ? join(CONFIG_DIR, 'models.json') : undefined);
+    (args.flags.write === true ? join(configDir(), 'models.json') : undefined);
   if (out) {
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(out, `${JSON.stringify(proposal.config, null, 2)}\n`);

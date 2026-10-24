@@ -5,7 +5,7 @@ import { paiseToDecimal } from '@arena/shared/money';
 import type { ParsedArgs } from '../ops/args';
 import { flagString, flagRequired } from '../ops/args';
 import { baseContext, angelProvider } from '../config/context';
-import { must, loadUniverse, CONFIG_DIR } from '../config/load';
+import { must, loadUniverse, configDir } from '../config/load';
 import { freshMapping, snapshotFor, summariseSnapshot } from '../data/market';
 import { importNifty50Csv, importNseHolidays } from '../data/importers';
 import { writeStepSummary, mdTable } from '../ops/summary';
@@ -66,7 +66,7 @@ export async function importUniverse(args: ParsedArgs): Promise<number> {
     effectiveFrom: flagRequired(args, 'effective-from'),
     downloadedOn: flagString(args, 'downloaded-on') ?? todayIst(),
   });
-  const out = join(CONFIG_DIR, 'universe', 'nifty50.json');
+  const out = join(configDir(), 'universe', 'nifty50.json');
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, `${JSON.stringify(u, null, 2)}\n`);
   process.stdout.write(`Wrote ${out}: ${u.constituents.length} symbols.\n`);
@@ -84,7 +84,7 @@ export async function importHolidays(args: ParsedArgs): Promise<number> {
       'https://www.nseindia.com/resources/exchange-communication-holidays',
     downloadedOn: flagString(args, 'downloaded-on') ?? todayIst(),
   });
-  const out = join(CONFIG_DIR, 'calendar', `nse-${year}.json`);
+  const out = join(configDir(), 'calendar', `nse-${year}.json`);
   writeFileSync(out, `${JSON.stringify(cal, null, 2)}\n`);
   process.stdout.write(`Wrote ${out}: ${cal.holidays.length} holidays.\n`);
   return 0;

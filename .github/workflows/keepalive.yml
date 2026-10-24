@@ -1,0 +1,17 @@
+name: keepalive
+on:
+  schedule:
+    # Weekly. Scheduled workflows in public repos are disabled after 60 days without activity (SPEC §18.3).
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+permissions:
+  actions: write
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: re-enable tick.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: gh api -X PUT "repos/${REPO}/actions/workflows/tick.yml/enable"

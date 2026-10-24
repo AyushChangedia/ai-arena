@@ -1,12 +1,14 @@
 #!/usr/bin/env tsx
+import { fileURLToPath } from 'node:url';
 import { ConfigError, NotImplementedError, errorMessage } from '@arena/shared/errors';
 import { parseArgs } from './ops/args';
 import { createLogger } from './ops/logger';
 import { writeStepSummary } from './ops/summary';
 import { commands } from './commands';
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
+/** Runs one CLI command and returns its exit code. Configuration errors exit 78 with how to fix them. */
+export async function main(argv: string[]): Promise<number> {
+  const args = parseArgs(argv);
   const name = args._[0];
   const cmd = name ? commands[name] : undefined;
   if (!cmd) {
@@ -17,27 +19,26 @@ async function main(): Promise<number> {
     );
     return name ? 2 : 0;
   }
-  return cmd.run({ ...args, _: args._.slice(1) });
-}
-
-main().then(
-  (code) => {
-    process.exitCode = code;
-  },
-  (err: unknown) => {
-    const log = createLogger();
+  try {
+    return await cmd.run({ ...args, _: args._.slice(1) });
+  } catch (err) {
     if (err instanceof ConfigError) {
       process.stderr.write(`Configuration problem: ${err.message}\nHow to fix: ${err.fix}\n`);
       writeStepSummary(`### Configuration problem\n\n${err.message}\n\nHow to fix: ${err.fix}\n`);
-      process.exitCode = 78;
-      return;
+      return 78;
     }
+    const log = createLogger();
     if (err instanceof NotImplementedError) {
       log.error({ err }, 'not implemented');
-      process.exitCode = 70;
-      return;
+      return 70;
     }
     log.error({ err }, `command failed: ${errorMessage(err)}`);
-    process.exitCode = 1;
-  },
-);
+    return 1;
+  }
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main(process.argv.slice(2)).then((code) => {
+    process.exitCode = code;
+  });
+}

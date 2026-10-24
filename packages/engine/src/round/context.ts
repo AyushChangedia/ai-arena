@@ -113,11 +113,16 @@ export async function buildMarketBlock(
   return { text, tradeable: new Map(valid.map((q) => [q.symbol, q.ltpPaise!])), indicatorsMissing };
 }
 
-/** The latest valid LTP stored for a symbol (for holdings with no price this round). */
-export async function lastValidPrice(db: Queryable, symbol: string): Promise<bigint | null> {
+/** The latest valid LTP stored for a symbol at or before `asOf` (for holdings with no price this round). */
+export async function lastValidPrice(
+  db: Queryable,
+  symbol: string,
+  asOf: Date,
+): Promise<bigint | null> {
   const r = await db.query<{ ltp_paise: string }>(
-    `SELECT q.ltp_paise FROM quotes q JOIN snapshots s ON s.id = q.snapshot_id WHERE q.symbol = $1 AND q.valid ORDER BY s.fetch_finished_at DESC LIMIT 1`,
-    [symbol],
+    `SELECT q.ltp_paise FROM quotes q JOIN snapshots s ON s.id = q.snapshot_id
+     WHERE q.symbol = $1 AND q.valid AND s.fetch_finished_at <= $2 ORDER BY s.fetch_finished_at DESC LIMIT 1`,
+    [symbol, asOf],
   );
   return r.rows[0] ? BigInt(r.rows[0].ltp_paise) : null;
 }
@@ -132,7 +137,7 @@ export async function pricesWithFallback(
     const q = snap.quotes.find((x) => x.symbol === s && x.valid);
     if (q?.ltpPaise) m.set(s, q.ltpPaise);
     else if (db) {
-      const p = await lastValidPrice(db, s);
+      const p = await lastValidPrice(db, s, snap.finishedAt); // as of the snapshot, so replay is deterministic
       if (p !== null) m.set(s, p);
     }
   }

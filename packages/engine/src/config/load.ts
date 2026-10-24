@@ -25,7 +25,8 @@ import { ConfigError } from '@arena/shared/errors';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(here, '../../../..');
-export const CONFIG_DIR = process.env.ARENA_CONFIG_DIR ?? join(REPO_ROOT, 'config');
+/** The config directory; ARENA_CONFIG_DIR overrides it (tests). Read at call time. */
+export const configDir = (): string => process.env.ARENA_CONFIG_DIR ?? join(REPO_ROOT, 'config');
 
 export type LoadResult<T> =
   | { ok: true; value: T; path: string }
@@ -42,7 +43,7 @@ export function loadJson<T>(
   rel: string,
   schema: z.ZodType<T>,
   fixHint: string,
-  dir = CONFIG_DIR,
+  dir = configDir(),
 ): LoadResult<T> {
   const path = join(dir, rel);
   if (!existsSync(path))

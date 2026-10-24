@@ -1,6 +1,6 @@
 # Progress
 
-Current phase: 4 — Rounds, scheduling and the shadow season
+Current phase: 5 — Web app
 Last updated: 2026-10-24 22:45 IST
 
 ## Build mode
@@ -22,7 +22,7 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 - [x] Phase 1 — Database and market data (live acceptance checks → SETUP.md "verify after setup")
 - [x] Phase 2 — Core engine logic
 - [x] Phase 3 — LLM layer (roster generation + live decide-all → SETUP.md)
-- [ ] Phase 4 — Rounds, scheduling and the shadow season
+- [x] Phase 4 — Rounds, scheduling and the shadow season (3 real shadow days + replay of real rounds → SETUP.md "verify after setup")
 - [ ] Phase 5 — Web app
 - [ ] Phase 6 — Hardening and launch
 
@@ -59,6 +59,11 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 - OpenRouter docs-example fixtures to replace after the first smoke.yml runs: `packages/engine/test/fixtures/openrouter/chat-success.docs-example.json`, `error-400/401/402/404/408/429/502/503.docs-example.json`, `key.docs-example.json`, `models-list.docs-example.json` (shape from docs; IDs/prices are test values).
 - HTTP 400 from OpenRouter (provider rejected our parameters) is classed MODEL_UNAVAILABLE → MISSED_CONFIG; SPEC §9.5 doesn't list 400.
 - `engine decide --dry` with no database or no active season uses the starting portfolio; with the market closed it uses the latest stored decision snapshot if there is a database, otherwise a fresh after-hours snapshot.
+- `tick --dry` checks config, DB, schedule and takes a real decision snapshot for a due slot, but makes no model calls (to avoid spend) and writes nothing. SPEC §7.3 says `--dry` "runs everything except ledger writes, alerts and revalidation"; use `engine decide --dry` to exercise model calls.
+- Every row of a round shares `reveal_at = fill snapshot time + 15 min` (fixed before the immutable ledger rows are written); `rounds.finished_at` is the moment the round finished, a few seconds later. SPEC §12.3 says reveal_at = finished_at + 15 min; the difference is seconds and keeps the ledger append-only.
+- Escalation after 3 consecutive provider misses opens a separate critical incident `llm:down:<slot>` next to the warning `llm:transient:<slot>` (found and fixed by a test: the first version never sent the critical alert).
+- Export/anchor commit: tick.yml uploads `public-data/` as an artifact (1-day retention; it is public data) and a separate `commit` job with `contents: write` commits it to `vars.DATA_BRANCH` or the default branch, then records the commit SHA in `anchors.commit_sha`. Not run yet (needs GitHub).
+- Healthchecks, Telegram and revalidation calls are covered by tests with stubbed fetch only.
 - Golden fee cases were computed by hand from the SPEC §11.5 rates, not checked against a broker's online calculator (broker sites unreachable from the build environment). SETUP.md has a verify-after-setup item. GST is applied to the unrounded sum of its base charges, then rounded once.
 - Rejection-code choices where SPEC §11.3 is open to reading: a SELL of a symbol not held is UNKNOWN_SYMBOL with detail "Tried to sell 40 HDFCBANK, held 0"; CONFLICTING_SIDES considers SELLs that passed shape checks; a quantity above 2,147,483,647 is INVALID_QUANTITY ("too large").
 - Corporate-action ratios are new-for-old (split 2:1 doubles shares; bonus 1:2 adds one share per two held). Fractional entitlements are dropped (to be disclosed on /rules).
@@ -69,4 +74,4 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
 ## Next
 
-- Phase 4: tick, slots/grace, round runner, fill snapshot, per-participant execution transactions, marks, pre-market and end-of-day jobs, reconciliation, export/anchors, revalidation call, alerts, heartbeat, admin commands + admin.yml, keepalive.yml, tick.yml, season start.
+- Phase 5: Next.js web app (tokens, every page in SPEC §16.3, charts, states, round reveal, /verify with in-browser checks, share images, /rules from config, /status), revalidation endpoint, Playwright + axe suites against a seeded *_test database.
