@@ -102,7 +102,9 @@ export function checkNoOrders(files: SourceFile[]): Violation[] {
 /** ISO 6166 check digit: letters become numbers (A=10 … Z=35), then a Luhn check over the digits. */
 export function isValidIsin(isin: string): boolean {
   if (!/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(isin)) return false;
-  const digits = [...isin].map((c) => (/[0-9]/.test(c) ? c : String(c.charCodeAt(0) - 55))).join('');
+  const digits = [...isin]
+    .map((c) => (/[0-9]/.test(c) ? c : String(c.charCodeAt(0) - 55)))
+    .join('');
   let sum = 0;
   for (let i = 0; i < digits.length; i++) {
     let d = Number(digits[digits.length - 1 - i]);
@@ -127,7 +129,12 @@ export function checkUniverseData(files: SourceFile[]): Violation[] {
     try {
       parsed = JSON.parse(f.content) as typeof parsed;
     } catch (e) {
-      out.push({ guard: 'universe-data', path: f.path, line: 1, text: `not valid JSON: ${String(e)}` });
+      out.push({
+        guard: 'universe-data',
+        path: f.path,
+        line: 1,
+        text: `not valid JSON: ${String(e)}`,
+      });
       continue;
     }
     for (const c of parsed.constituents ?? []) {

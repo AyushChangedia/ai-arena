@@ -101,7 +101,7 @@ Design choices worth knowing:
 
 ```
 pnpm install
-pnpm check            # typecheck + lint + unit + property tests + guard checks
+pnpm check            # format + typecheck + lint + unit + property tests + guard checks
 pnpm test:int         # integration tests (needs local Postgres or the CI service)
 pnpm test:e2e         # Playwright + axe
 pnpm run doctor       # configuration and live-service checks (`pnpm doctor` is a pnpm built-in)

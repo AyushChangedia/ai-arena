@@ -16,7 +16,7 @@
     "test:int": "vitest run --project integration",
     "test:e2e": "pnpm --filter web test:e2e",
     "guards": "tsx scripts/guards/run.ts",
-    "check": "pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm guards",
+    "check": "pnpm format:check && pnpm typecheck && pnpm lint && pnpm test:coverage && pnpm guards",
     "doctor": "tsx packages/engine/src/cli.ts doctor",
     "engine": "tsx packages/engine/src/cli.ts",
     "admin": "tsx packages/engine/src/cli.ts admin",
