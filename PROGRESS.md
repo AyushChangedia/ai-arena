@@ -1,7 +1,7 @@
 # Progress
 
-Current phase: 6 — Hardening and launch
-Last updated: 2026-10-24 22:45 IST
+Current phase: build complete (Phases 0–6). Next: owner setup (SETUP.md), then the verify-after-setup checks.
+Last updated: 2026-10-25 00:25 IST
 
 ## Build mode
 
@@ -24,7 +24,7 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 - [x] Phase 3 — LLM layer (roster generation + live decide-all → SETUP.md)
 - [x] Phase 4 — Rounds, scheduling and the shadow season (3 real shadow days + replay of real rounds → SETUP.md "verify after setup")
 - [x] Phase 5 — Web app (real S0 data, Vercel deploy, design approval and live revalidation timing → SETUP.md)
-- [ ] Phase 6 — Hardening and launch
+- [x] Phase 6 — Hardening and launch (Angel One email, launch checklist, S1 start → SETUP.md Part G)
 
 ## Done (verified)
 
@@ -36,15 +36,38 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 - [x] Redaction — verified by `packages/engine/test/logger.test.ts` → configured secret values and secret-named fields never reach log output
 - [x] `pnpm run doctor` prints the full table and exits non-zero — verified by `pnpm run doctor; echo $?` → 27 rows, "required checks failing", exit=1
 
+### Final verification (end of Phase 6, all run in the build environment on 2026-10-24/25)
+
+- [x] `pnpm check` → typecheck, lint clean; 22 files, 239 unit + property tests passed; coverage of shared + core: statements 99.82%, branches 97.95%, lines 99.79%; `guards: 213 files scanned, no violations`; exit 0
+- [x] `TEST_PG_URL=postgres://postgres:postgres@localhost:5432/postgres pnpm test:int` (local Postgres 16) → 8 files, 56 tests passed (ledger immutability trigger, web_ro permissions, delayed views, migrations, Drizzle schema sync, round runner end to end, commands, read layer)
+- [x] Engine-wide coverage, `COVERAGE_SCOPE=all npx vitest run --project unit --project integration --coverage` → 295 tests passed; statements 93.93%, branches 84.08%, functions 93.89%, lines 94.64% (target 80%)
+- [x] `pnpm test:browser` → hash vectors identical in Node and Chromium (1 test passed)
+- [x] Web build: `cd apps/web && rm -rf .next && npx next build` → success, with the CSP header
+- [x] `cd apps/web && TEST_PG_URL=… npx playwright test` → 37 passed, 2 skipped by design (desktop-only sort test on mobile/tablet), at 375, 768 and 1280 px: every page renders, axe has no serious/critical violations, no horizontal scroll, populated/empty/paused/unreachable states, 404s, "Check this trade" and "Check a whole day", keyboard navigation, revalidation endpoint rejects a bad secret, CSP and security headers present with no CSP violations in the console
+- [x] README Python verifier cross-checked: `python3 -I verify.py ledger.jsonl` and `pnpm verify-ledger --file ledger.jsonl` agree on the head hash for entries containing ₹, quotes and newlines
+
+### Earlier phases (details in each phase commit)
+
+- [x] Phase 1: schema, migrations, triggers, roles, views; Angel One provider from the official SDK sources; quote validation; calendar/universe loaders; snapshots; smoke.yml. Integration tests pass; live acceptance → SETUP.md Part F.
+- [x] Phase 2: fees (golden cases), validator and every §11.3 rejection code, executor, positions, hash chain, metrics, benchmarks, Monkey, corporate actions, prompt renderer, parser; property tests at 1,000 runs.
+- [x] Phase 3: OpenRouter client (timeouts, retry, §9.5 classification, identity check, one repair attempt, structured outputs, budget caps, cost capture), `engine roster`, `engine decide`, smoke decide-all. Docs-example error bodies (401/402/404/408/429/5xx) classified correctly in tests.
+- [x] Phase 4: tick, slots and grace, round runner, recovery, pre-market, end of day, reconcile, export + anchors, replay, alerts, heartbeat, admin commands, tick/admin/keepalive workflows. §13 failure modes (broken key, data outage, crash mid-round) covered by integration tests against the test database.
+- [x] Phase 5: every §16.3 page, charts, states, round reveal, /verify with in-browser checks, OG images, rules from config, /status; Playwright + axe; Lighthouse on a local production build 97–100 in every category.
+- [x] Phase 6: Content Security Policy (no nonces, see gaps) plus existing security headers; revalidation endpoint (bearer secret compared in constant time, 10 requests a minute, 401/429); README (how it works, verifying the ledger three ways, architecture, commands, all §18.2 runbooks); SETUP.md in final order; copy and disclaimers checked against §24.
+
 ## In progress
 
-- [ ] Phase 1 — not started
+Nothing. The build is complete; the remaining work needs the owner (SETUP.md).
 
 ## Blocked on the human
 
 See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
 ## Not verified / known gaps
+
+- **Fixed in Phase 6: test data had leaked into config.** `config/universe/nifty50.json` committed in the Phase 4 commit was the 50-row test universe (symbols S0…S49) written by an early version of the import-universe integration test, before config paths were read at call time. It is removed. A new guard (`universe-data` in `scripts/guards/guards.ts`, with self-tests) checks every ISIN check digit in `config/universe/`, which the leaked rows fail. No other tracked file outside source directories came from tests (checked with `git ls-files`).
+- CSP uses `script-src 'self' 'unsafe-inline'` and `style-src 'self' 'unsafe-inline'` (Next.js "without nonces" setup): nonces would force every page to render dynamically, which the cached-page design (§16.8) rules out. Next's experimental SRI mode could remove `'unsafe-inline'` for scripts later; not enabled because it's experimental.
+- The revalidation rate limit (10/min) is per server instance (in memory); on Vercel each instance counts separately. The 429 path is not covered by an e2e test (it would rate-limit the shared test server); the 401 path is.
 
 - CI (`ci.yml`) has not run yet: it runs on the first push. Local equivalents pass.
 - Node 24: the build environment has Node 22.22; CI pins Node 24 via `.nvmrc`/`NODE_VERSION`. `engines` allows >=22.12 so local runs work.
@@ -79,4 +102,7 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
 ## Next
 
-- Phase 6: security headers + CSP, revalidation rate limit (done in Phase 5; verify), README (how it works, verify the ledger, runbooks, architecture), copy pass, disclaimers, SETUP.md in final order, open the PR.
+1. The owner works through SETUP.md in order (Parts A–E), pasting job summaries back where asked.
+2. A session replaces the docs-example fixtures with the `record-fixtures` artifact (SETUP.md step 15) and reruns the tests.
+3. After 3 shadow days, record the Part F "verify after setup" results here.
+4. Launch: SETUP.md Part G (Angel One email, §22 checklist, roster approval, S1 live).

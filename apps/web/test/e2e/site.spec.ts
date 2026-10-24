@@ -139,6 +139,22 @@ test.describe('populated shadow season', () => {
     }
   });
 
+  test('security headers are set and the CSP blocks nothing the site uses', async ({ page }) => {
+    const violations: string[] = [];
+    page.on('console', (m) => {
+      if (/Content Security Policy/i.test(m.text())) violations.push(m.text());
+    });
+    const res = await page.goto(at(P.populated, '/'));
+    const h = res!.headers();
+    expect(h['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(h['x-content-type-options']).toBe('nosniff');
+    await expect(page.locator('canvas').first()).toBeVisible();
+    await page.goto(at(P.populated, '/verify'));
+    await page.getByRole('button', { name: 'Check a whole day' }).click();
+    await expect(page.getByText(/verify, and the last hash matches/)).toBeVisible();
+    expect(violations).toEqual([]);
+  });
+
   test('revalidation endpoint rejects a bad secret and accepts the right one', async ({
     request,
   }) => {

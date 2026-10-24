@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { checkNoMock, checkNoOrders, runAllGuards, isTestPath } from '../guards';
+import {
+  checkNoMock,
+  checkNoOrders,
+  checkUniverseData,
+  isValidIsin,
+  runAllGuards,
+  isTestPath,
+} from '../guards';
 
 // Planted strings are built from fragments so this test file itself stays clean if ever scanned.
 const j = (...p: string[]) => p.join('');
@@ -69,5 +76,44 @@ describe('guard: no broker orders (SPEC §19.6)', () => {
   });
   it('ignores markdown files', () => {
     expect(runAllGuards([{ path: 'SPEC.md', content: j('place', 'Order') }])).toEqual([]);
+  });
+});
+
+describe('guard: universe data has real ISINs', () => {
+  // Published ISINs of four Nifty 50 companies (Reliance, HDFC Bank, Infosys, TCS).
+  const real = ['INE002A01018', 'INE040A01034', 'INE009A01021', 'INE467B01029'];
+  const file = (isins: string[]) => ({
+    path: 'config/universe/nifty50.json',
+    content: JSON.stringify({
+      constituents: isins.map((isin, i) => ({ symbol: `X${i}`, isin })),
+    }),
+  });
+
+  it('accepts valid check digits', () => {
+    for (const i of real) expect(isValidIsin(i), i).toBe(true);
+    expect(checkUniverseData([file(real)])).toEqual([]);
+  });
+
+  it('catches the test universe that once leaked into config/', () => {
+    const leaked = Array.from({ length: 3 }, (_, i) => `INE00000${String(i).padStart(4, '0')}`);
+    expect(checkUniverseData([file(leaked)])).toHaveLength(3);
+  });
+
+  it('catches a changed digit, a missing ISIN and broken JSON', () => {
+    expect(isValidIsin('INE002A01019')).toBe(false);
+    expect(isValidIsin('not-an-isin')).toBe(false);
+    expect(
+      checkUniverseData([
+        {
+          path: 'config/universe/nifty50.json',
+          content: JSON.stringify({ constituents: [{ symbol: 'A' }] }),
+        },
+      ]),
+    ).toHaveLength(1);
+    expect(checkUniverseData([{ path: 'config/universe/x.json', content: '{' }])).toHaveLength(1);
+  });
+
+  it('ignores files outside config/universe', () => {
+    expect(checkUniverseData([{ ...file(['bad']), path: 'packages/x/universe.json' }])).toEqual([]);
   });
 });

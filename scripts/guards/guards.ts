@@ -99,6 +99,52 @@ export function checkNoOrders(files: SourceFile[]): Violation[] {
   return scan(files, 'no-broker-orders', NO_ORDER_PATTERNS, () => false);
 }
 
+/** ISO 6166 check digit: letters become numbers (A=10 … Z=35), then a Luhn check over the digits. */
+export function isValidIsin(isin: string): boolean {
+  if (!/^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(isin)) return false;
+  const digits = [...isin].map((c) => (/[0-9]/.test(c) ? c : String(c.charCodeAt(0) - 55))).join('');
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    let d = Number(digits[digits.length - 1 - i]);
+    if (i % 2 === 1) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+
+/**
+ * Committed universe files must hold real instruments. Every ISIN must carry a valid check digit,
+ * which invented test rows (and test output that leaked into config/) fail.
+ */
+export function checkUniverseData(files: SourceFile[]): Violation[] {
+  const out: Violation[] = [];
+  for (const f of files) {
+    if (!/^config\/universe\/[^/]+\.json$/.test(f.path)) continue;
+    let parsed: { constituents?: { symbol?: string; isin?: string }[] };
+    try {
+      parsed = JSON.parse(f.content) as typeof parsed;
+    } catch (e) {
+      out.push({ guard: 'universe-data', path: f.path, line: 1, text: `not valid JSON: ${String(e)}` });
+      continue;
+    }
+    for (const c of parsed.constituents ?? []) {
+      if (!c.isin || !isValidIsin(c.isin)) {
+        const line = f.content.split('\n').findIndex((l) => c.isin && l.includes(c.isin)) + 1;
+        out.push({
+          guard: 'universe-data',
+          path: f.path,
+          line: line || 1,
+          text: `${c.symbol ?? '?'}: ISIN ${c.isin ?? '(missing)'} has no valid check digit`,
+        });
+      }
+    }
+  }
+  return out;
+}
+
 export function runAllGuards(files: SourceFile[]): Violation[] {
-  return [...checkNoMock(files), ...checkNoOrders(files)];
+  return [...checkNoMock(files), ...checkNoOrders(files), ...checkUniverseData(files)];
 }
