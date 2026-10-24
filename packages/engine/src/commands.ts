@@ -1,6 +1,7 @@
 import type { ParsedArgs } from './ops/args';
 import { runDoctor, renderDoctor } from './ops/doctor';
 import { serviceChecks } from './ops/service-checks';
+import { rosterCommand, decideCommand } from './commands/llm';
 import { writeStepSummary } from './ops/summary';
 import {
   snapshotDry,
@@ -36,6 +37,14 @@ export const commands: Record<string, Command> = {
   'import-holidays': {
     help: '--year YYYY --file <json|csv>: write config/calendar/nse-YYYY.json',
     run: importHolidays,
+  },
+  roster: {
+    help: '--tier budget|flagship [--write | --out path]: propose the roster from OpenRouter (no key needed)',
+    run: rosterCommand,
+  },
+  decide: {
+    help: '--participant <slot|all> --dry: real prompt, real model call, validated answer. No ledger writes.',
+    run: decideCommand,
   },
   'record-fixtures': {
     help: '[--out dir]: record sanitised Angel One responses (smoke.yml)',

@@ -1,0 +1,14 @@
+{
+  "label": "docs-example",
+  "status": 200,
+  "body": {
+    "data": {
+      "label": "sk-or-v1-abc...xyz",
+      "limit": 10,
+      "usage": 2.5,
+      "limit_remaining": 7.5,
+      "is_free_tier": false,
+      "rate_limit": { "requests": 100, "interval": "10s" }
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "label": "docs-example",
+  "status": 429,
+  "body": { "error": { "code": 429, "message": "Rate limit exceeded", "metadata": {} } }
+}

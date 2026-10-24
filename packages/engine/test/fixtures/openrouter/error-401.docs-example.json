@@ -1,0 +1,5 @@
+{
+  "label": "docs-example",
+  "status": 401,
+  "body": { "error": { "code": 401, "message": "No auth credentials found", "metadata": {} } }
+}
