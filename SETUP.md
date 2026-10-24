@@ -10,6 +10,27 @@ Where it says "run a workflow": your repository → **Actions** → pick the wor
 
 ---
 
+## Status (2026-10-25)
+
+| Step  | State                                                                                                                                                                |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1–4   | Done: workflow permissions read-only, `production` environment, Neon project `ai-arena` (Singapore, 0.25 CU), `DATABASE_URL_OWNER`, migrate #1 applied 0001 and 0002 |
+| 5     | **You:** role passwords, then the `DATABASE_URL` secret; keep the `web_ro` string for Vercel                                                                         |
+| 6–7   | **You:** Angel One SmartAPI and OpenRouter (accounts, credit, keys, secrets)                                                                                         |
+| 8–10  | Done: universe (effective 2026-09-30), 2026 holidays and the proposed roster are committed; the roster is not approved yet (step 27)                                 |
+| 11    | Checked: rates match Zerodha's calculator; the DP charge differs (₹15.93 here, ₹15.34 at Zerodha). Pick one; details in PROGRESS.md                                  |
+| 12–15 | After steps 5–7                                                                                                                                                      |
+| 16    | **You:** make `REVALIDATE_SECRET` and add it to Vercel and GitHub                                                                                                    |
+| 17    | Done except the two secret variables: add `DATABASE_URL_READONLY` and `REVALIDATE_SECRET` in Vercel, then redeploy. Site: https://ai-arena-psi-gules.vercel.app      |
+| 18    | `WEB_BASE_URL` done; `REVALIDATE_SECRET` comes with step 16                                                                                                          |
+| 19    | Any time: screenshots artifact from the latest **ci** run                                                                                                            |
+| 20    | Optional, **you**                                                                                                                                                    |
+| 21    | Done: `ARENA_MODE` = `shadow`                                                                                                                                        |
+| 22    | **tick** and **keepalive** are disabled on purpose until steps 5–7 are done; enable both here                                                                        |
+| 23+   | After step 22                                                                                                                                                        |
+
+---
+
 ## Part A: Accounts and the database
 
 ### 1. GitHub repository
