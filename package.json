@@ -22,6 +22,7 @@
     "admin": "tsx packages/engine/src/cli.ts admin",
     "verify-ledger": "tsx packages/engine/src/cli.ts verify-ledger",
     "db:migrate": "tsx packages/db/src/migrate.ts",
+    "db:passwords": "tsx packages/db/src/role-passwords.ts",
     "test:browser": "vitest run --project browser",
     "build:web": "pnpm --filter web build"
   },

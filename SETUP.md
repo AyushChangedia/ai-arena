@@ -59,17 +59,22 @@ The tick, smoke, admin and migrate workflows run in this environment. Repository
 
 ### 5. Give the two roles passwords
 
-1. On your own computer, make two random passwords, for example with `openssl rand -hex 24` run twice. (Hex keeps them safe to put in a URL.)
-2. Neon → **SQL Editor** → run, with your two passwords:
-   ```sql
-   ALTER ROLE engine_rw WITH PASSWORD '<first password>';
-   ALTER ROLE web_ro    WITH PASSWORD '<second password>';
+Neon's console can't reset the password of a role that was created without one, and its SQL editor sometimes can't wake a suspended compute, so the **migrate** workflow sets the passwords from two GitHub secrets.
+
+1. Make two random passwords of **letters and digits only**, at least 24 characters (symbols would break the connection URL). On Windows, open PowerShell and run this twice:
    ```
-3. Build the two connection strings by taking the owner string from step 3 and replacing the user and password:
+   -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 40 | % {[char]$_})
+   ```
+   On Mac or Linux: `openssl rand -hex 24`, twice.
+2. Add two GitHub secrets: **`ENGINE_RW_PASSWORD`** (the first password) and **`WEB_RO_PASSWORD`** (the second).
+3. Run the workflow **migrate** again. Its summary should say "Role passwords set for: engine_rw, web_ro". It never prints the passwords.
+4. Build the two connection strings by taking the owner string from step 3 and replacing the user and password:
    `postgresql://engine_rw:<first password>@<same host>/<same database>?sslmode=require`
    `postgresql://web_ro:<second password>@<same host>/<same database>?sslmode=require`
-4. Add the first as the GitHub secret **`DATABASE_URL`**.
-5. Keep the second (`web_ro`) somewhere safe (a password manager); it goes into Vercel in step 17.
+5. Add the first as the GitHub secret **`DATABASE_URL`**.
+6. Keep the second (`web_ro`) somewhere safe (a password manager); it goes into Vercel in step 17.
+
+To change a password later (for example after a leak), update the secret and run **migrate** again.
 
 ### 6. Angel One SmartAPI (market data)
 
