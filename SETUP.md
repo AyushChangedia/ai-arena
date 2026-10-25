@@ -137,7 +137,7 @@ pnpm install
 
 ### 10. Roster: pick the models
 
-**Free tier (current choice):** run the workflow **smoke** with check **roster** and tier **free**. It picks each configured lab's newest `:free` model and shows the table with $0, the calls per day and every free model OpenRouter lists. On 2026-10-25 that meant Google (Gemma 4), NVIDIA (Nemotron), Thinking Machines (Inkling), Xingchen AGI and Recursive (Flint); OpenAI, Anthropic, Meta and DeepSeek had no free model. The run's log also prints the proposed `config/models.json`. Download the **roster** artifact, and replace `config/models.json` with its `models.json` (or upload the artifact to a Claude session and ask it to commit it). The paid roster committed on 2026-10-25 stays in place until you do; with no credit on the account it can't be billed, but its calls would fail.
+**Free tier (current choice):** run the workflow **smoke** with check **roster** and tier **free**. It picks each configured lab's newest `:free` model and shows the table with $0, the calls per day and every free model OpenRouter lists. On 2026-10-25 that meant Google (Gemma 4), NVIDIA (Nemotron), Xingchen AGI (Xing) and Recursive (Flint); Thinking Machines' Inkling was dropped because OpenRouter serves it only to coding agents; OpenAI, Anthropic, Meta and DeepSeek had no free model. The run's log also prints the proposed `config/models.json`. Download the **roster** artifact, and replace `config/models.json` with its `models.json` (or upload the artifact to a Claude session and ask it to commit it). The paid roster committed on 2026-10-25 stays in place until you do; with no credit on the account it can't be billed, but its calls would fail.
 
 The steps below describe the paid tiers.
 

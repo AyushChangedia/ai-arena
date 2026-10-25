@@ -89,10 +89,11 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
   - The first `smoke → roster` (tier free) run on 2026-10-25 found 17 free models on OpenRouter, and only Google among the five labs had one. With the owner's approval the lab slots became configurable:
     - Slots are slugs defined in `config/roster-rules.json`; the paid tiers still require the five labs.
     - The free tier tries every configured lab and skips any with no free model today. It needs 3 to 6 models.
-    - New free-only labs: NVIDIA (`NEM`), Thinking Machines (`INK`), Xingchen AGI (`XNG`) and Recursive (`FLT`), with colours checked against the §16.1 palette rules.
+    - New free-only labs: NVIDIA (`NEM`), Xingchen AGI (`XNG`) and Recursive (`FLT`), with colours checked against the §16.1 palette rules.
     - The site's model pages and the proxy's slug check now come from the config (`apps/web/src/lib/slugs.ts`).
     - The roster command lists every free model and prints the proposed `models.json` in the log.
-    - A test pins the picks against that day's real free list: Gemma 4 31B, Nemotron 3.5 Super VL, Inkling, Xing 4.0 and Flint v1.0.
+    - A test pins the picks against that day's real free list: Gemma 4 31B, Nemotron 3.5 Super VL, Xing 4.0 and Flint v1.0.
+  - `smoke → decide-all` on 2026-10-25 (Sunday, after-hours live snapshot accepted): Nemotron, Xing and Flint answered OK with parseable, validated actions (Xing's over-limit and over-cash BUYs were rejected with CONCENTRATION_LIMIT and INSUFFICIENT_CASH). Gemma 4 returned HTTP 429 (free capacity busy; classed MISSED_PROVIDER). Inkling returned HTTP 403 "only available on agentic harnesses" and was removed from the roster and the rules.
   - **Not verified:** the free models' answers (no `decide --dry` run yet), and how reliably their free capacity holds up on market days.
   - The committed `config/models.json` is still the paid budget roster until the owner replaces it.
   - Free capacity can disappear on any day; such rounds are missed with the provider's reason.

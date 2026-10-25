@@ -1,5 +1,5 @@
 {
-  "$comment": "Proposed by `pnpm engine roster`. A live season will not start until a human sets \"approved\": true (SPEC §3.2). Never change a model mid-season.",
+  "$comment": "Proposed by `pnpm engine roster`. A live season will not start until a human sets \"approved\": true (SPEC §3.2). Never change a model mid-season. Inkling (thinkingmachines) removed on 2026-10-25: OpenRouter serves its free model only to coding agents (HTTP 403 in the decide-all smoke run).",
   "tier": "free",
   "approved": false,
   "approvedBy": null,
@@ -58,35 +58,6 @@
         "structured_outputs",
         "temperature",
         "tool_choice",
-        "tools",
-        "top_p"
-      ],
-      "pricing": {
-        "promptUsdPerToken": "0",
-        "completionUsdPerToken": "0"
-      },
-      "monthlyEstimateUsd": 0,
-      "monthlyCapUsd": 0
-    },
-    {
-      "slot": "thinkingmachines",
-      "openrouterId": "thinkingmachines/inkling:free",
-      "canonicalSlug": "thinkingmachines/inkling-20260715",
-      "displayName": "Inkling (free)",
-      "shortCode": "INK",
-      "color": "#F58A4B",
-      "created": 1784325956,
-      "contextLength": 1048576,
-      "supportedParameters": [
-        "frequency_penalty",
-        "include_reasoning",
-        "max_tokens",
-        "presence_penalty",
-        "reasoning",
-        "reasoning_effort",
-        "seed",
-        "stop",
-        "temperature",
         "tools",
         "top_p"
       ],

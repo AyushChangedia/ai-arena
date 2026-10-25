@@ -403,7 +403,7 @@ describe('free tier (SPEC §3.2)', () => {
     expect(p.missingSlots).toEqual([]);
     expect(p.notOffered).toEqual(['anthropic']);
     // Labs whose free model isn't listed today sit out instead of blocking the roster.
-    expect(p.unavailable).toEqual(['nvidia', 'thinkingmachines', 'xingchen', 'recursive']);
+    expect(p.unavailable).toEqual(['nvidia', 'xingchen', 'recursive']);
     expect(p.config!.participants.map((x) => [x.openrouterId, x.shortCode])).toEqual([
       ['openai/gpt-oss-120b:free', 'GPT'],
       ['google/gemma-3-27b-it:free', 'GEM'], // gemini …-exp is excluded
@@ -445,13 +445,13 @@ describe('free tier (SPEC §3.2)', () => {
     expect(p.config!.participants.map((x) => [x.slot, x.openrouterId, x.shortCode])).toEqual([
       ['google', 'google/gemma-4-31b-it:free', 'GEM'],
       ['nvidia', 'nvidia/nemotron-3.5-super-vl:free', 'NEM'],
-      ['thinkingmachines', 'thinkingmachines/inkling:free', 'INK'],
       ['xingchen', 'xingchen-agi/xing4.0-29b-a4b:free', 'XNG'],
       ['recursive', 'recursive/flint-v1.0:free', 'FLT'],
     ]);
     expect(p.unavailable).toEqual(['openai', 'meta', 'deepseek']);
     expect(modelsConfigSchema.safeParse(p.config).success).toBe(true);
-    // 5 models × 4 rounds stays well under the 50-a-day free limit, even with a repair each.
+    // Inkling is on the list but no slot takes it: OpenRouter serves it only to coding agents.
+    // 4 models × 4 rounds stays well under the 50-a-day free limit, even with a repair each.
     expect(p.callsPerDay * 2).toBeLessThanOrEqual(50);
   });
   it('caps a free roster at six models', () => {
@@ -462,7 +462,6 @@ describe('free tier (SPEC §3.2)', () => {
         m('openai/gpt-oss-120b:free', 1),
         m('meta-llama/llama-4-maverick:free', 1),
         m('deepseek/deepseek-chat-v3.1:free', 1),
-        m('thinkingmachines/inkling:free', 1),
         m('xingchen-agi/xing4.0-29b-a4b:free', 1),
         m('recursive/flint-v1.0:free', 1),
       ],
@@ -472,7 +471,7 @@ describe('free tier (SPEC §3.2)', () => {
       new Date(),
     );
     expect(p.config!.participants).toHaveLength(6);
-    expect(p.leftOut).toEqual(['xingchen', 'recursive']);
+    expect(p.leftOut).toEqual(['recursive']);
     expect(rosterTable(p)).toContain('left out: the roster is full');
   });
   it('rejects a lab slug that a benchmark uses, and needs the five labs to have paid patterns', () => {
