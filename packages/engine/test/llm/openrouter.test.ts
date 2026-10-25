@@ -11,7 +11,8 @@ import {
 import { overBudget } from '../../src/llm/budget';
 import { fixture, fakeFetch } from '../helpers/fixtures';
 import { must, loadArena, loadRosterRules } from '../../src/config/load';
-import type { ModelEntry } from '@arena/shared/schemas';
+import { modelsConfigSchema, type ModelEntry } from '@arena/shared/schemas';
+import { slotTimes } from '../../src/round/schedule';
 
 const arena = must(loadArena());
 const rules = must(loadRosterRules());
@@ -366,5 +367,76 @@ describe('roster (SPEC §3.2)', () => {
   it('budget cap', () => {
     expect(overBudget(4.25, 4.25)).toBe(true);
     expect(overBudget(4.24, 4.25)).toBe(false);
+  });
+  it('a zero cap (free model) runs at no cost and stops at the first billed call', () => {
+    expect(overBudget(0, 0)).toBe(false);
+    expect(overBudget(0.000001, 0)).toBe(true);
+  });
+});
+
+describe('free tier (SPEC §3.2)', () => {
+  // Test values in OpenRouter's model-list shape; free variants are priced "0".
+  const m = (id: string, created: number, price = '0') => ({
+    id,
+    canonical_slug: id.replace(/:free$/, ''),
+    name: `Lab: ${id}`,
+    created,
+    context_length: 131072,
+    pricing: { prompt: price, completion: price },
+    supported_parameters: ['max_tokens', 'temperature', 'response_format'],
+  });
+  const models = [
+    m('openai/gpt-oss-120b:free', 300),
+    m('openai/gpt-oss-120b', 300, '0.0000001'),
+    m('openai/gpt-5.4-mini', 400, '0.00000075'),
+    m('google/gemma-3-27b-it:free', 200),
+    m('google/gemini-2.0-flash-exp:free', 250),
+    m('meta-llama/llama-4-maverick:free', 220),
+    m('meta-llama/llama-3.3-70b-instruct:free', 120),
+    m('deepseek/deepseek-chat-v3.1:free', 260),
+    m('deepseek/deepseek-r1-distill-llama-70b:free', 280),
+    m('anthropic/claude-haiku-5.5', 500, '0.0000001'),
+  ];
+  it('picks only :free models, newest per slot, and the lab with no free model sits out', () => {
+    const p = proposeRoster(models, rules, 'free', arena, new Date('2026-10-25T00:00:00Z'));
+    expect(p.missingSlots).toEqual([]);
+    expect(p.notOffered).toEqual(['anthropic']);
+    expect(p.config!.participants.map((x) => [x.openrouterId, x.shortCode])).toEqual([
+      ['openai/gpt-oss-120b:free', 'GPT'],
+      ['google/gemma-3-27b-it:free', 'GEM'], // gemini …-exp is excluded
+      ['meta-llama/llama-4-maverick:free', 'LMA'],
+      ['deepseek/deepseek-chat-v3.1:free', 'DSK'], // distills are excluded
+    ]);
+    expect(p.config!.totalMonthlyEstimateUsd).toBe(0);
+    expect(p.config!.participants.every((x) => x.monthlyCapUsd === 0)).toBe(true);
+    expect(p.alternatives).toEqual([]);
+    expect(modelsConfigSchema.safeParse(p.config).success).toBe(true);
+    expect(p.callsPerDay).toBe(4 * slotTimes(arena).length);
+    const table = rosterTable(p);
+    expect(table).toContain('sits out: no free model from this lab');
+    expect(table).toContain('$0 a month');
+  });
+  it('paid tiers never pick a :free variant', () => {
+    const p = proposeRoster(models, rules, 'budget', arena, new Date());
+    expect(p.picks.find((x) => x.slot === 'openai')!.chosen!.id).toBe('openai/gpt-5.4-mini');
+  });
+  it('needs at least three free models', () => {
+    const p = proposeRoster(models.slice(0, 4), rules, 'free', arena, new Date());
+    expect(p.config).toBeNull();
+  });
+  it('the schema rejects a priced model in a free roster, and a short paid roster', () => {
+    const p = proposeRoster(models, rules, 'free', arena, new Date());
+    const priced = structuredClone(p.config!);
+    priced.participants[0]!.pricing.promptUsdPerToken = '0.0000001';
+    expect(modelsConfigSchema.safeParse(priced).success).toBe(false);
+    expect(modelsConfigSchema.safeParse({ ...p.config, tier: 'budget' }).success).toBe(false);
+  });
+  it('accepts a response that names the :free model without its suffix', () => {
+    const free = { openrouterId: 'meta-llama/llama-4-maverick:free', canonicalSlug: null };
+    expect(isSameModel(free, 'meta-llama/llama-4-maverick:free')).toBe(true);
+    expect(isSameModel(free, 'meta-llama/llama-4-maverick')).toBe(true);
+    expect(isSameModel(free, 'meta-llama/llama-4-scout')).toBe(false);
+    const paid = { openrouterId: 'openai/gpt-5.4-mini', canonicalSlug: null };
+    expect(isSameModel(paid, 'openai/gpt-5.4-mini:free')).toBe(false);
   });
 });

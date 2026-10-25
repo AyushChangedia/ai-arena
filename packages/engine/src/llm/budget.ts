@@ -15,7 +15,11 @@ export async function monthSpendUsd(
   return Number(r.rows[0]?.s ?? 0);
 }
 
-/** At or above the cap → skip the call (SPEC §9.7). */
+/**
+ * At or above the cap → skip the call (SPEC §9.7). A cap of 0 belongs to a free model: it may run
+ * at no cost, and is paused as soon as any call is billed.
+ */
 export function overBudget(spentUsd: number, capUsd: number): boolean {
+  if (capUsd === 0) return spentUsd > 0;
   return spentUsd >= capUsd;
 }

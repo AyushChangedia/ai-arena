@@ -26,6 +26,7 @@ import { fakeFetch } from '../helpers/fixtures';
 
 const log = pino({ level: 'silent' });
 const arena = must(loadArena());
+const arenaFromConfig = arena;
 
 class Sink implements AlertSink {
   sent: string[] = [];
@@ -130,6 +131,18 @@ describe('heartbeat and summaries', () => {
 });
 
 describe('schedule (SPEC §12.2)', () => {
+  // The committed config (free-tier season): 4 rounds, 90 minutes apart.
+  it('the committed config has 4 rounds from 09:30 to 14:00', () => {
+    expect(slotTimes(arena)).toEqual(['09:30', '11:00', '12:30', '14:00']);
+  });
+});
+
+describe('schedule logic on a 30-minute schedule (SPEC §12.2)', () => {
+  // A fixed schedule, so the slot logic is tested independently of the committed config.
+  const arena = {
+    ...arenaFromConfig,
+    schedule: { ...arenaFromConfig.schedule, everyMinutes: 30, lastSlot: '15:00' },
+  };
   const day = '2026-10-19';
   const t = (hhmm: string, sec = 0) =>
     new Date(new Date(`${day}T${hhmm}:00+05:30`).getTime() + sec * 1000);

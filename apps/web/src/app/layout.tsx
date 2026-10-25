@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
   title: { default: 'AI Arena', template: '%s | AI Arena' },
   description:
-    'Five AI models trade Nifty 50 stocks with paper money at real NSE prices. Every trade, rejection and reason is public and verifiable.',
+    'AI models trade Nifty 50 stocks with paper money at real NSE prices. Every trade, rejection and reason is public and verifiable.',
   robots: shadow ? { index: false, follow: false } : { index: true, follow: true },
   openGraph: { siteName: 'AI Arena', type: 'website' },
 };

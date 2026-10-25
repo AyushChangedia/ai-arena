@@ -91,11 +91,14 @@ You need an Angel One trading account (KYC done). The project only reads market 
 
 ### 7. OpenRouter (the AI models)
 
-1. Sign up at https://openrouter.ai.
-2. **Settings** → **Credits** → **Add credits** → buy **$10** (OpenRouter adds a 5.5% fee). Prepaid credit is the hard spending cap.
-3. **Settings** → **Privacy**: leave model fallbacks off; the engine also disables them per request and checks the serving model on every response.
-4. **Keys** → **Create key** → name `ai-arena-engine` → **credit limit $10** → create → copy the key (shown once).
-5. Add it as the GitHub secret **`OPENROUTER_API_KEY`**.
+The arena runs on **free models** (the owner's choice, 2026-10-25): no credit to buy. OpenRouter allows 50 free-model requests a day on an account that has never bought credit; the 4-round schedule uses about 16 a day with 4 models.
+
+1. Sign up at https://openrouter.ai. Don't add credits.
+2. **Settings** → **Privacy**: leave model fallbacks off; the engine also disables them per request and checks the serving model on every response. If free models are blocked by a privacy setting about providers that may train on prompts, allow it: the prompts contain only public market data and each model's own notes.
+3. **Keys** → **Create key** → name `ai-arena-engine` → credit limit **0** (or leave it empty; with no credit on the account nothing can be billed) → create → copy the key (shown once).
+4. Add it as the GitHub secret **`OPENROUTER_API_KEY`**.
+
+To switch to paid models later, buy credit, set `schedule.everyMinutes` back to 30 and `schedule.lastSlot` to 15:00 in `config/arena.json`, and run the roster with tier **budget** (step 10).
 
 ---
 
@@ -132,9 +135,13 @@ pnpm install
    It takes the `CM` (capital market) list and writes `config/calendar/nse-2026.json`.
 4. If NSE has already published the **2027** list (usually in December), repeat with `--year 2027`. A season of 20 trading days that starts in November or December runs into January, and the engine needs the next year's holidays before it gets there (the pre-market job reminds you from 1 December).
 
-### 10. Roster: pick the five models
+### 10. Roster: pick the models
 
-1. Run the workflow **smoke** with check **roster**. It reads OpenRouter's public model list (no key used), picks each lab's newest budget model by the rules in `config/roster-rules.json`, and shows the table in the job summary: OpenRouter ID, short code, price per million tokens, context length, structured-output / reasoning / temperature support, monthly estimate and monthly cap per model, and the estimated monthly total.
+**Free tier (current choice):** run the workflow **smoke** with check **roster** and tier **free**. It picks each lab's newest `:free` model (Anthropic has none, so Claude sits out) and shows the table with $0 and the calls per day. Download the **roster** artifact, and replace `config/models.json` with its `models.json` (or upload the artifact to a Claude session and ask it to commit it). The paid roster committed on 2026-10-25 stays in place until you do; with no credit on the account it can't be billed, but its calls would fail.
+
+The steps below describe the paid tiers.
+
+1. Run the workflow **smoke** with check **roster** and tier **budget**. It reads OpenRouter's public model list (no key used), picks each lab's newest budget model by the rules in `config/roster-rules.json`, and shows the table in the job summary: OpenRouter ID, short code, price per million tokens, context length, structured-output / reasoning / temperature support, monthly estimate and monthly cap per model, and the estimated monthly total.
 2. The same run uploads an artifact **roster** containing `models.json`. Download it from the run page (**Artifacts** at the bottom) and unzip it.
 3. **Meta choice.** The Meta slot defaults to **Muse Spark** (Meta's current model, closed). The table also shows **Llama 4 Maverick** as an alternative (older, cheap, a deliberate underdog). To use Maverick instead, open `models.json`, find the entry under `alternatives` with slot `meta`, and move it into `participants` in place of the Muse Spark entry.
 4. Copy the file to `config/models.json` in your clone. Leave `"approved": false` for now: shadow seasons run with an unapproved roster; a **live** season refuses to start until it's approved (step 27).

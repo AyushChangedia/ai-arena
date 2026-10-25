@@ -76,7 +76,7 @@ export default async function Image() {
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', fontSize: 64, color: OG.text }}>AI Arena</div>
         <div style={{ display: 'flex', fontSize: 32, color: OG.text2 }}>
-          {d ? `${d.season} standings` : 'Five AI models. Real NSE prices. Paper money.'}
+          {d ? `${d.season} standings` : 'AI models. Real NSE prices. Paper money.'}
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

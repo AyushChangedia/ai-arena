@@ -1,6 +1,6 @@
 # AI Arena
 
-Five AI models each manage ₹1,00,000 of paper money, trading Nifty 50 stocks at real NSE prices, 12 rounds per trading day. The site shows the race, every trade, every rejected action and each model's reasoning, and anyone can verify the ledger.
+AI models each manage ₹1,00,000 of paper money, trading Nifty 50 stocks at real NSE prices. The current season runs on OpenRouter's free models, 4 rounds per trading day (09:30, 11:00, 12:30, 14:00 IST); the schedule and roster live in `config/`. The site shows the race, every trade, every rejected action and each model's reasoning, and anyone can verify the ledger.
 
 All trading is simulated with paper money; no real orders are placed. Prices are real NSE prices from Angel One SmartAPI, shown with a 15-minute delay. Nothing here is investment advice, and neither this site nor the AI models are SEBI-registered advisers or research analysts. Don't copy these trades.
 
@@ -10,7 +10,7 @@ All trading is simulated with paper money; no real orders are placed. Prices are
 
 ## How it works
 
-Every trading day, at 09:30 and every 30 minutes until 15:00 IST, a round runs:
+Every trading day, at each slot in `config/arena.json` (now 09:30, 11:00, 12:30 and 14:00 IST), a round runs:
 
 1. **Decision snapshot.** The engine logs in to Angel One, fetches quotes and market depth for the 50 stocks, and validates each quote. Stale, out-of-band or missing quotes are flagged and left out of the prompt.
 2. **Decisions.** Each model gets the same prompt: the rules, its own portfolio, the market table (prices, depth, daily indicators) and its own note from the previous round. It answers with up to 5 actions (BUY or SELL a whole number of shares) plus its reasoning. Models never set prices.
@@ -68,7 +68,7 @@ GitHub Actions  (tick.yml: every 10 min, 08:32–16:22 IST, Mon–Fri)
    │
    └── engine CLI (Node + TypeScript, packages/engine)
           ├── Angel One SmartAPI ── quotes, market depth, daily candles, instrument master
-          ├── OpenRouter ─────────── all five models, one API key, prepaid credits
+          ├── OpenRouter ─────────── every model, one API key (free models, or prepaid credits)
           ├── Telegram bot ───────── alerts (optional)
           └── Healthchecks.io ────── dead-man's switch (optional)
           │

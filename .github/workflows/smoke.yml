@@ -13,6 +13,15 @@ on:
           - decide-all
           - record-fixtures
           - roster
+      tier:
+        description: roster only — budget, flagship or free
+        type: choice
+        required: false
+        default: free
+        options:
+          - free
+          - budget
+          - flagship
 permissions:
   contents: read
 concurrency:
@@ -58,7 +67,9 @@ jobs:
         run: pnpm engine record-fixtures --out fixtures-out
       - name: roster (public model list, no key needed)
         if: inputs.check == 'roster'
-        run: pnpm engine roster --tier budget --out roster-out/models.json
+        run: pnpm engine roster --tier "$TIER" --out roster-out/models.json
+        env:
+          TIER: ${{ inputs.tier }}
       - name: upload fixtures (1-day retention; artifacts on public repos are visible)
         if: inputs.check == 'record-fixtures'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

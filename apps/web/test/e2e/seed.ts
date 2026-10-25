@@ -16,6 +16,8 @@ import { runRound } from '../../../../packages/engine/src/round/runner';
 import { runEndOfDay } from '../../../../packages/engine/src/round/eod';
 import { exportDay } from '../../../../packages/engine/src/round/export';
 import { currentSeason } from '../../../../packages/engine/src/round/store';
+import { slotTimes } from '../../../../packages/engine/src/round/schedule';
+import { must, loadArena } from '../../../../packages/engine/src/config/load';
 
 const ADMIN = process.env.TEST_PG_URL ?? 'postgres://postgres:postgres@localhost:5432/postgres';
 const PW = 'arena_local_test_only';
@@ -125,23 +127,12 @@ async function main() {
     'e2e seed',
     'seed',
   );
-  const slots = [
-    '09:30',
-    '10:00',
-    '10:30',
-    '11:00',
-    '11:30',
-    '12:00',
-    '12:30',
-    '13:00',
-    '13:30',
-    '14:00',
-    '14:30',
-    '15:00',
-  ];
+  // The site numbers rounds from the committed schedule, so seed exactly those slots.
+  w.deps.arena = must(loadArena());
+  const slots = slotTimes(w.deps.arena);
   for (const [di, day] of days.entries()) {
     for (const [si, slot] of slots.entries()) {
-      if (di === 1 && si > 5) break;
+      if (di === 1 && si >= Math.ceil(slots.length / 2)) break; // the second day is half done
       w.clock.t = new Date(`${day}T${slot}:30+05:30`);
       // Prices drift deterministically so values move.
       for (const [i, s] of ['AAA', 'BBB', 'CCC', 'DDD', 'EEE', 'FFF', 'GGG', 'HHH'].entries()) {

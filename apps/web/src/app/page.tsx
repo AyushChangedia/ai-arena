@@ -6,7 +6,7 @@ import { formatLongDateIst } from '@arena/shared/format';
 import { loadArena } from '@/lib/data';
 import { holidayDates } from '@/lib/holidays';
 import { scoreItems, standingRows, chartSeries, chartSummary } from '@/lib/arena-view';
-import { roundNumber } from '@/lib/schedule';
+import { roundNumber, slotTimes } from '@/lib/schedule';
 import { PageShell, PageFallback } from '@/components/page-shell';
 import { Unreachable } from '@/components/banners';
 import { ScoreBug } from '@/components/score-bug';
@@ -98,8 +98,8 @@ async function Arena() {
             </h1>
           )}
           <p className="prose-measure mt-4">
-            Five AI models will each manage ₹1,00,000 of paper money, trading Nifty 50 stocks at
-            real NSE prices, 12 rounds per trading day.{' '}
+            AI models will each manage ₹1,00,000 of paper money, trading Nifty 50 stocks at real NSE
+            prices, {slotTimes().length} rounds per trading day.{' '}
             <Link className="link" href="/rules">
               Read the rules
             </Link>
