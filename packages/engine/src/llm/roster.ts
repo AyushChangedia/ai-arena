@@ -102,6 +102,8 @@ export interface RosterProposal {
   notOffered: ModelSlot[];
   /** Model calls per trading day at this roster and schedule, before repair attempts. */
   callsPerDay: number;
+  /** The models that matched, shown even when the roster is incomplete. */
+  participants: ModelEntry[];
 }
 
 export function proposeRoster(
@@ -159,7 +161,7 @@ export function proposeRoster(
           benchmarks: rules.benchmarks,
         }
       : null;
-  return { config, picks, alternatives, missingSlots, notOffered, callsPerDay };
+  return { config, picks, alternatives, missingSlots, notOffered, callsPerDay, participants };
 }
 
 const perM = (usdPerToken: string) => `$${(Number(usdPerToken) * 1e6).toFixed(2)}`;
@@ -171,7 +173,7 @@ export function rosterTable(p: RosterProposal): string {
   ];
   const line = (e: ModelEntry, label: string = e.slot) =>
     `| ${label} | ${e.shortCode} | \`${e.openrouterId}\` | ${e.displayName} | ${perM(e.pricing.promptUsdPerToken)} | ${perM(e.pricing.completionUsdPerToken)} | ${e.contextLength ?? '—'} | ${e.supportedParameters.includes('structured_outputs') ? 'yes' : 'no'} | ${e.supportedParameters.includes('reasoning') ? 'yes' : 'no'} | ${e.supportedParameters.includes('temperature') ? 'yes' : 'no'} | ${e.monthlyEstimateUsd.toFixed(2)} | ${e.monthlyCapUsd.toFixed(2)} |`;
-  for (const e of p.config?.participants ?? []) rows.push(line(e));
+  for (const e of p.participants) rows.push(line(e));
   for (const e of p.alternatives) rows.push(line(e, `${e.slot} (alternative)`));
   for (const s of p.missingSlots)
     rows.push(`| ${s} | — | no model matched the rules | | | | | | | | | |`);
@@ -188,4 +190,28 @@ export function rosterTable(p: RosterProposal): string {
     .map((x) => `- ${x.slot}: also matched ${x.otherMatches.map((o) => `\`${o}\``).join(', ')}`)
     .join('\n');
   return `${rows.join('\n')}${total}${others ? `\n\nOther models that matched (older or undated):\n${others}` : ''}`;
+}
+
+/**
+ * Every `:free` model OpenRouter lists right now, newest first, so the owner can see what the free
+ * tier can choose from (the free lineup changes often).
+ */
+export function freeModelList(models: OrModel[]): string {
+  const free = models
+    .filter((m) => m.id.endsWith(':free'))
+    .sort((a, b) => (b.created ?? 0) - (a.created ?? 0) || a.id.localeCompare(b.id));
+  if (!free.length) return 'OpenRouter lists no `:free` models right now.';
+  const day = (s: number | null | undefined) =>
+    s ? new Date(s * 1000).toISOString().slice(0, 10) : '—';
+  const rows = free.map(
+    (m) =>
+      `| \`${m.id}\` | ${day(m.created)} | ${m.context_length ?? '—'} | ${m.supported_parameters?.includes('structured_outputs') || m.supported_parameters?.includes('response_format') ? 'yes' : 'no'} |`,
+  );
+  return [
+    `Free models on OpenRouter now (${free.length}), newest first:`,
+    '',
+    '| Model ID | Released | Context | JSON output |',
+    '| --- | --- | --- | --- |',
+    ...rows,
+  ].join('\n');
 }

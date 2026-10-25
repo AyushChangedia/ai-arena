@@ -17,7 +17,7 @@ import {
   configDir,
 } from '../config/load';
 import { OpenRouterClient } from '../llm/openrouter';
-import { proposeRoster, rosterTable, type Tier } from '../llm/roster';
+import { proposeRoster, rosterTable, freeModelList, type Tier } from '../llm/roster';
 import { decideWithModel } from '../llm/decide';
 import { renderSystemPrompt, renderUserMessage } from '../llm/prompt';
 import { freshMapping, snapshotFor, inMarketHours } from '../data/market';
@@ -51,7 +51,8 @@ export async function rosterCommand(args: ParsedArgs): Promise<number> {
   const rules = must(loadRosterRules());
   const { models, skipped } = await new OpenRouterClient({}).listModels();
   const proposal = proposeRoster(models, rules, tier, ctx.arena, new Date());
-  const md = `## Proposed roster (${tier})\n\nFrom ${models.length} models on OpenRouter${skipped ? ` (${skipped} skipped: unexpected shape)` : ''}, ${new Date().toISOString()}.\n\n${rosterTable(proposal)}\n`;
+  const freeList = tier === 'free' ? `\n\n${freeModelList(models)}` : '';
+  const md = `## Proposed roster (${tier})\n\nFrom ${models.length} models on OpenRouter${skipped ? ` (${skipped} skipped: unexpected shape)` : ''}, ${new Date().toISOString()}.\n\n${rosterTable(proposal)}${freeList}\n`;
   process.stdout.write(`${md}\n`);
   writeStepSummary(md);
   if (!proposal.config) {

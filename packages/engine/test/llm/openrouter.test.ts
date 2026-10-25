@@ -7,6 +7,7 @@ import {
   rosterTable,
   monthlyEstimateUsd,
   pickForPatterns,
+  freeModelList,
 } from '../../src/llm/roster';
 import { overBudget } from '../../src/llm/budget';
 import { fixture, fakeFetch } from '../helpers/fixtures';
@@ -420,9 +421,23 @@ describe('free tier (SPEC §3.2)', () => {
     const p = proposeRoster(models, rules, 'budget', arena, new Date());
     expect(p.picks.find((x) => x.slot === 'openai')!.chosen!.id).toBe('openai/gpt-5.4-mini');
   });
-  it('needs at least three free models', () => {
+  it('needs at least three free models, and still shows the ones that matched', () => {
     const p = proposeRoster(models.slice(0, 4), rules, 'free', arena, new Date());
     expect(p.config).toBeNull();
+    expect(p.participants.map((x) => x.openrouterId)).toEqual([
+      'openai/gpt-oss-120b:free',
+      'google/gemma-3-27b-it:free',
+    ]);
+    expect(rosterTable(p)).toContain('openai/gpt-oss-120b:free');
+  });
+  it('lists every free model, newest first', () => {
+    const list = freeModelList(models);
+    expect(list).toContain('Free models on OpenRouter now (7)');
+    expect(list.indexOf('openai/gpt-oss-120b:free')).toBeLessThan(
+      list.indexOf('meta-llama/llama-3.3-70b-instruct:free'),
+    );
+    expect(list).not.toContain('openai/gpt-5.4-mini');
+    expect(freeModelList([])).toMatch(/no `:free` models/);
   });
   it('the schema rejects a priced model in a free roster, and a short paid roster', () => {
     const p = proposeRoster(models, rules, 'free', arena, new Date());
