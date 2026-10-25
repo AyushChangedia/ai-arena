@@ -9,7 +9,7 @@ import type {
   ModelSlot,
   Tier,
 } from '@arena/shared/schemas';
-import { SLOTS, MIN_FREE_PARTICIPANTS } from '@arena/shared/schemas';
+import { SLOTS, MIN_FREE_PARTICIPANTS, MAX_PARTICIPANTS } from '@arena/shared/schemas';
 import type { OrModel } from './openrouter';
 import { slotTimes } from '../round/schedule';
 
@@ -104,6 +104,10 @@ export interface RosterProposal {
   callsPerDay: number;
   /** The models that matched, shown even when the roster is incomplete. */
   participants: ModelEntry[];
+  /** Free tier: labs with free-model rules that have no free model on OpenRouter today. */
+  unavailable: ModelSlot[];
+  /** Free tier: matched labs left out because the roster is full (MAX_PARTICIPANTS). */
+  leftOut: ModelSlot[];
 }
 
 export function proposeRoster(
@@ -114,10 +118,12 @@ export function proposeRoster(
   generatedAt: Date,
 ): RosterProposal {
   const picks: SlotPick[] = [];
-  const participants: ModelEntry[] = [];
+  let participants: ModelEntry[] = [];
   const alternatives: ModelEntry[] = [];
   const notOffered: ModelSlot[] = [];
-  for (const slot of SLOTS) {
+  // Paid tiers field the five labs; the free tier tries every lab in roster-rules.json, in order.
+  const slots: string[] = tier === 'free' ? Object.keys(rules.slots) : [...SLOTS];
+  for (const slot of slots) {
     const r = rules.slots[slot];
     if (!r) {
       picks.push({ slot, chosen: null, otherMatches: [] });
@@ -139,7 +145,13 @@ export function proposeRoster(
       if (a.chosen) alternatives.push(toEntry(slot, a.chosen, alt.shortCode, r.color, arena));
     }
   }
-  const missingSlots = picks.filter((p) => !p.chosen).map((p) => p.slot);
+  const noMatch = picks.filter((p) => !p.chosen).map((p) => p.slot);
+  // A paid roster needs every lab. Free models come and go, so a free roster takes the labs that
+  // have one today and needs at least MIN_FREE_PARTICIPANTS of them.
+  const missingSlots = tier === 'free' ? [] : noMatch;
+  const unavailable = tier === 'free' ? noMatch : [];
+  const leftOut = participants.slice(MAX_PARTICIPANTS).map((p) => p.slot);
+  participants = participants.slice(0, MAX_PARTICIPANTS);
   const enough = tier !== 'free' || participants.length >= MIN_FREE_PARTICIPANTS;
   const callsPerDay = participants.length * slotTimes(arena).length;
   const config: ModelsConfig | null =
@@ -161,7 +173,17 @@ export function proposeRoster(
           benchmarks: rules.benchmarks,
         }
       : null;
-  return { config, picks, alternatives, missingSlots, notOffered, callsPerDay, participants };
+  return {
+    config,
+    picks,
+    alternatives,
+    missingSlots,
+    notOffered,
+    callsPerDay,
+    participants,
+    unavailable,
+    leftOut,
+  };
 }
 
 const perM = (usdPerToken: string) => `$${(Number(usdPerToken) * 1e6).toFixed(2)}`;
@@ -177,6 +199,12 @@ export function rosterTable(p: RosterProposal): string {
   for (const e of p.alternatives) rows.push(line(e, `${e.slot} (alternative)`));
   for (const s of p.missingSlots)
     rows.push(`| ${s} | — | no model matched the rules | | | | | | | | | |`);
+  for (const s of p.unavailable)
+    rows.push(`| ${s} | — | sits out: no free model on OpenRouter today | | | | | | | | | |`);
+  for (const s of p.leftOut)
+    rows.push(
+      `| ${s} | — | left out: the roster is full (${MAX_PARTICIPANTS} models) | | | | | | | | | |`,
+    );
   for (const s of p.notOffered)
     rows.push(`| ${s} | — | sits out: no free model from this lab | | | | | | | | | |`);
   const free = p.config?.tier === 'free';

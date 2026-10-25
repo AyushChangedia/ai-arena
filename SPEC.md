@@ -119,7 +119,7 @@ All values live in `config/arena.json`. Code reads the config; the `/rules` page
 
 Configured in `config/models.json`:
 
-- Five model slots: `openai`, `anthropic`, `google`, `meta`, `deepseek`. A free-tier season fields only the slots whose lab offers a free model (§3.2).
+- Paid tiers: five model slots, `openai`, `anthropic`, `google`, `meta`, `deepseek`. The free tier (§3.2) fields the labs in `config/roster-rules.json` that have a free model today; on 2026-10-25 only Google among the five had one, so the free slots also include NVIDIA, Thinking Machines, Xingchen AGI and Recursive (the owner's choice). Slot names are lowercase slugs, and the site's model pages follow the config.
 - Two benchmarks that appear on the leaderboard but are visually quieter:
   - **Nifty 50**: ₹1,00,000 "invested" in the index at the season's first fill snapshot, no costs. Value = 1,00,000 × index now ÷ index at start.
   - **Monkey**: a seeded random trader that follows the same rules and pays the same costs (§11.9).
@@ -127,7 +127,7 @@ Configured in `config/models.json`:
 ### 3.2 Picking the models (Phase 3, human approves)
 
 1. Call OpenRouter `GET /api/v1/models`.
-2. For each slot, pick that lab's current model in the chosen tier. `budget` = each lab's fast, cheap tier. `flagship` = each lab's top general model. `free` (the owner's choice for running at no cost, 2026-10-25) = each lab's newest OpenRouter `:free` model; a lab with no free model (currently Anthropic) sits out the season, and a free roster needs at least 3 models. Mixing tiers across slots is not allowed. Prefer dated or pinned model IDs. Free models come with OpenRouter's limits (50 free requests a day on an account that has never bought credit, 20 a minute) and their capacity can disappear; a round a free model can't answer is missed with its reason, like any other provider failure. Use a schedule whose daily calls (models × rounds, plus repairs) stay well under the daily limit.
+2. For each slot, pick that lab's current model in the chosen tier. `budget` = each lab's fast, cheap tier. `flagship` = each lab's top general model. `free` (the owner's choice for running at no cost, 2026-10-25) = each configured lab's newest OpenRouter `:free` model; a lab with no free model today sits out the season, and a free roster has 3 to 6 models. Mixing tiers across slots is not allowed. Prefer dated or pinned model IDs. Free models come with OpenRouter's limits (50 free requests a day on an account that has never bought credit, 20 a minute) and their capacity can disappear; a round a free model can't answer is missed with its reason, like any other provider failure. Use a schedule whose daily calls (models × rounds, plus repairs) stay well under the daily limit.
 3. Meta: the open Llama line stopped at Llama 4; Meta's current model is Muse Spark (closed, available through Meta's API and OpenRouter). Offer the human a choice: Muse Spark (current), or Llama 4 Maverick (older and cheap, a deliberate underdog). Show both in the approval table.
 4. For each model record: OpenRouter ID, display name, 3-letter short code, jersey colour (§16.1), `supported_parameters` (structured outputs, reasoning, temperature), price per million input and output tokens, context length.
 5. Show the human the table and an estimated monthly cost (§9.7). Write `config/models.json` only after they approve.

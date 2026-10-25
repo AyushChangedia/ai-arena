@@ -3,7 +3,7 @@ import { join, dirname } from 'node:path';
 import { DateTime } from 'luxon';
 import type pg from 'pg';
 import { createPool } from '@arena/db';
-import { SLOTS, TIERS, MIN_FREE_PARTICIPANTS, type ModelEntry } from '@arena/shared/schemas';
+import { TIERS, MIN_FREE_PARTICIPANTS, type ModelEntry } from '@arena/shared/schemas';
 import { formatUsd } from '@arena/shared/format';
 import type { ParsedArgs } from '../ops/args';
 import { flagString } from '../ops/args';
@@ -59,18 +59,22 @@ export async function rosterCommand(args: ParsedArgs): Promise<number> {
     process.stderr.write(
       proposal.missingSlots.length
         ? `No model matched for: ${proposal.missingSlots.join(', ')}. Update config/roster-rules.json.\n`
-        : `Only ${proposal.picks.filter((x) => x.chosen).length} free models matched; a season needs at least ${MIN_FREE_PARTICIPANTS}. Update config/roster-rules.json.\n`,
+        : `Only ${proposal.participants.length} free models matched; a season needs at least ${MIN_FREE_PARTICIPANTS}. Update config/roster-rules.json.\n`,
     );
     return 1;
   }
   const out =
     flagString(args, 'out') ??
     (args.flags.write === true ? join(configDir(), 'models.json') : undefined);
+  const json = `${JSON.stringify(proposal.config, null, 2)}\n`;
   if (out) {
     mkdirSync(dirname(out), { recursive: true });
-    writeFileSync(out, `${JSON.stringify(proposal.config, null, 2)}\n`);
+    writeFileSync(out, json);
     process.stdout.write(`Wrote ${out} with "approved": false.\n`);
   }
+  // Also in the log, so the proposed file can be reviewed and committed without downloading the
+  // artifact. It holds only public model data.
+  process.stdout.write(`\n--- proposed config/models.json ---\n${json}--- end ---\n`);
   return 0;
 }
 
@@ -94,7 +98,10 @@ export async function decideCommand(args: ParsedArgs): Promise<number> {
   const which = flagString(args, 'participant') ?? 'all';
   const entries: ModelEntry[] =
     which === 'all' ? models.participants : models.participants.filter((p) => p.slot === which);
-  if (!entries.length) throw new Error(`--participant must be one of: all, ${SLOTS.join(', ')}`);
+  if (!entries.length)
+    throw new Error(
+      `--participant must be one of: all, ${models.participants.map((p) => p.slot).join(', ')}`,
+    );
 
   const now = new Date();
   const tradingDate = DateTime.fromJSDate(now, { zone: IST }).toISODate()!;

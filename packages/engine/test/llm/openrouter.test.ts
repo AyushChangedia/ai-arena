@@ -12,7 +12,7 @@ import {
 import { overBudget } from '../../src/llm/budget';
 import { fixture, fakeFetch } from '../helpers/fixtures';
 import { must, loadArena, loadRosterRules } from '../../src/config/load';
-import { modelsConfigSchema, type ModelEntry } from '@arena/shared/schemas';
+import { modelsConfigSchema, rosterRulesSchema, type ModelEntry } from '@arena/shared/schemas';
 import { slotTimes } from '../../src/round/schedule';
 
 const arena = must(loadArena());
@@ -402,6 +402,8 @@ describe('free tier (SPEC §3.2)', () => {
     const p = proposeRoster(models, rules, 'free', arena, new Date('2026-10-25T00:00:00Z'));
     expect(p.missingSlots).toEqual([]);
     expect(p.notOffered).toEqual(['anthropic']);
+    // Labs whose free model isn't listed today sit out instead of blocking the roster.
+    expect(p.unavailable).toEqual(['nvidia', 'thinkingmachines', 'xingchen', 'recursive']);
     expect(p.config!.participants.map((x) => [x.openrouterId, x.shortCode])).toEqual([
       ['openai/gpt-oss-120b:free', 'GPT'],
       ['google/gemma-3-27b-it:free', 'GEM'], // gemini …-exp is excluded
@@ -416,6 +418,70 @@ describe('free tier (SPEC §3.2)', () => {
     const table = rosterTable(p);
     expect(table).toContain('sits out: no free model from this lab');
     expect(table).toContain('$0 a month');
+  });
+  it("picks from OpenRouter's real free list of 2026-10-25", () => {
+    // The 17 `:free` IDs and release dates the smoke → roster run printed on 2026-10-25.
+    const day = (d: string) => Date.parse(`${d}T00:00:00Z`) / 1000;
+    const live = [
+      ['recursive/flint-v1.0:free', '2026-10-21'],
+      ['xingchen-agi/xing4.0-29b-a4b:free', '2026-10-16'],
+      ['nvidia/nemotron-3.5-super-vl:free', '2026-10-15'],
+      ['dots-studio/dots-3-note-preview:free', '2026-08-14'],
+      ['liquid/lfm-2.5-2.6b:free', '2026-08-11'],
+      ['nvidia/nemotron-3.5-lightning:free', '2026-08-11'],
+      ['thinkingmachines/inkling-small:free', '2026-07-30'],
+      ['poolside/laguna-s-2.1:free', '2026-07-21'],
+      ['thinkingmachines/inkling:free', '2026-07-17'],
+      ['poolside/laguna-xs-2.1:free', '2026-07-02'],
+      ['cohere/north-mini-code:free', '2026-06-17'],
+      ['nvidia/nemotron-3.5-content-safety:free', '2026-06-04'],
+      ['nvidia/nemotron-3-ultra-550b-a55b:free', '2026-06-04'],
+      ['nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', '2026-04-28'],
+      ['google/gemma-4-26b-a4b-it:free', '2026-04-03'],
+      ['google/gemma-4-31b-it:free', '2026-04-02'],
+      ['nvidia/nemotron-3-super-120b-a12b:free', '2026-03-11'],
+    ].map(([id, d]) => m(id!, day(d!)));
+    const p = proposeRoster(live, rules, 'free', arena, new Date('2026-10-25T00:00:00Z'));
+    expect(p.config!.participants.map((x) => [x.slot, x.openrouterId, x.shortCode])).toEqual([
+      ['google', 'google/gemma-4-31b-it:free', 'GEM'],
+      ['nvidia', 'nvidia/nemotron-3.5-super-vl:free', 'NEM'],
+      ['thinkingmachines', 'thinkingmachines/inkling:free', 'INK'],
+      ['xingchen', 'xingchen-agi/xing4.0-29b-a4b:free', 'XNG'],
+      ['recursive', 'recursive/flint-v1.0:free', 'FLT'],
+    ]);
+    expect(p.unavailable).toEqual(['openai', 'meta', 'deepseek']);
+    expect(modelsConfigSchema.safeParse(p.config).success).toBe(true);
+    // 5 models × 4 rounds stays well under the 50-a-day free limit, even with a repair each.
+    expect(p.callsPerDay * 2).toBeLessThanOrEqual(50);
+  });
+  it('caps a free roster at six models', () => {
+    const many = ['google/gemma-4-31b-it:free', 'nvidia/nemotron-3-super-120b-a12b:free'];
+    const p = proposeRoster(
+      [
+        ...many.map((id) => m(id, 1)),
+        m('openai/gpt-oss-120b:free', 1),
+        m('meta-llama/llama-4-maverick:free', 1),
+        m('deepseek/deepseek-chat-v3.1:free', 1),
+        m('thinkingmachines/inkling:free', 1),
+        m('xingchen-agi/xing4.0-29b-a4b:free', 1),
+        m('recursive/flint-v1.0:free', 1),
+      ],
+      rules,
+      'free',
+      arena,
+      new Date(),
+    );
+    expect(p.config!.participants).toHaveLength(6);
+    expect(p.leftOut).toEqual(['xingchen', 'recursive']);
+    expect(rosterTable(p)).toContain('left out: the roster is full');
+  });
+  it('rejects a lab slug that a benchmark uses, and needs the five labs to have paid patterns', () => {
+    const bad = structuredClone(rules) as unknown as Record<string, Record<string, unknown>>;
+    bad.slots!.monkey = bad.slots!.nvidia;
+    expect(rosterRulesSchema.safeParse(bad).success).toBe(false);
+    const noPaid = structuredClone(rules);
+    noPaid.slots.openai!.tiers.budget = [];
+    expect(rosterRulesSchema.safeParse(noPaid).success).toBe(false);
   });
   it('paid tiers never pick a :free variant', () => {
     const p = proposeRoster(models, rules, 'budget', arena, new Date());

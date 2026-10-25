@@ -18,12 +18,11 @@ import { AllocationBar } from '@/components/allocation-bar';
 import { StatusStrip } from '@/components/status-strip';
 import { Tabs } from '@/components/tabs';
 import { participantStatus } from '@/lib/arena-view';
+import { PARTICIPANT_SLUGS } from '@/lib/slugs';
 
-/** The seven participant slots are fixed, so their pages can be prerendered (and their metadata sits in <head>). */
+/** The participant slots come from config, so their pages can be prerendered (and their metadata sits in <head>). */
 export function generateStaticParams() {
-  return ['openai', 'anthropic', 'google', 'meta', 'deepseek', 'monkey', 'nifty50'].map((slug) => ({
-    slug,
-  }));
+  return PARTICIPANT_SLUGS.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({
