@@ -2,6 +2,8 @@
  * Typed read queries for the web app. They read ONLY the public v_* views (SPEC §15), through any
  * executor: `pg` locally and in tests, the Neon serverless driver in production.
  */
+import { cleanModelName } from '@arena/shared/format';
+
 export interface Sql {
   query<T = Record<string, unknown>>(text: string, params?: unknown[]): Promise<T[]>;
 }
@@ -85,7 +87,7 @@ export async function getParticipants(sql: Sql, seasonId: string): Promise<Parti
     seasonId: x.season_id as string,
     kind: x.kind as Participant['kind'],
     slot: x.slot as string,
-    displayName: x.display_name as string,
+    displayName: cleanModelName(x.display_name as string),
     shortCode: x.short_code as string,
     color: x.color as string,
     modelId: (x.openrouter_model_id as string) ?? null,
