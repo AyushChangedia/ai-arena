@@ -128,7 +128,7 @@ Admin commands run from **GitHub → Actions → admin → Run workflow** (works
 
 1. **Angel One:** in the SmartAPI dashboard, regenerate the API key; in the Angel One app, disable and re-enable TOTP for SmartAPI (save the new base32 secret) and change your MPIN.
 2. **OpenRouter:** openrouter.ai → Keys → revoke the leaked key, create a new one with a credit limit.
-3. **Database:** in the Neon SQL editor run `ALTER ROLE engine_rw WITH PASSWORD '<new>';` (or `web_ro`), then update the connection string.
+3. **Database:** change the GitHub secret `ENGINE_RW_PASSWORD` or `WEB_RO_PASSWORD` (letters and digits, 24+ characters), run **migrate**, then update the connection string in `DATABASE_URL` or Vercel's `DATABASE_URL_READONLY`.
 4. **Revalidation secret:** generate a new 32+ character random string; set it in both Vercel and GitHub.
 5. Update the GitHub secrets (Settings → Environments → production) and Vercel env vars, redeploy Vercel if you changed a web variable, then run **smoke.yml → doctor**. All required rows must pass.
 

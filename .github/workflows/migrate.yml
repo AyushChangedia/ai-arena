@@ -22,3 +22,9 @@ jobs:
         run: pnpm db:migrate
         env:
           DATABASE_URL_OWNER: ${{ secrets.DATABASE_URL_OWNER }}
+      - name: Set role passwords (only if the secrets are set)
+        run: pnpm db:passwords
+        env:
+          DATABASE_URL_OWNER: ${{ secrets.DATABASE_URL_OWNER }}
+          ENGINE_RW_PASSWORD: ${{ secrets.ENGINE_RW_PASSWORD }}
+          WEB_RO_PASSWORD: ${{ secrets.WEB_RO_PASSWORD }}
