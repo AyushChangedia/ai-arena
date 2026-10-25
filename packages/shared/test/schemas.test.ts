@@ -32,7 +32,6 @@ describe('config schemas', () => {
       'meta',
       'deepseek',
       'nvidia',
-      'thinkingmachines',
       'xingchen',
       'recursive',
     ]);

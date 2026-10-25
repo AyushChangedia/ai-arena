@@ -119,7 +119,7 @@ All values live in `config/arena.json`. Code reads the config; the `/rules` page
 
 Configured in `config/models.json`:
 
-- Paid tiers: five model slots, `openai`, `anthropic`, `google`, `meta`, `deepseek`. The free tier (§3.2) fields the labs in `config/roster-rules.json` that have a free model today; on 2026-10-25 only Google among the five had one, so the free slots also include NVIDIA, Thinking Machines, Xingchen AGI and Recursive (the owner's choice). Slot names are lowercase slugs, and the site's model pages follow the config.
+- Paid tiers: five model slots, `openai`, `anthropic`, `google`, `meta`, `deepseek`. The free tier (§3.2) fields the labs in `config/roster-rules.json` that have a free model today; on 2026-10-25 only Google among the five had one, so the free slots also include NVIDIA, Xingchen AGI and Recursive (the owner's choice; Thinking Machines' Inkling was tried and dropped because OpenRouter serves it only to coding agents). Slot names are lowercase slugs, and the site's model pages follow the config.
 - Two benchmarks that appear on the leaderboard but are visually quieter:
   - **Nifty 50**: ₹1,00,000 "invested" in the index at the season's first fill snapshot, no costs. Value = 1,00,000 × index now ÷ index at start.
   - **Monkey**: a seeded random trader that follows the same rules and pays the same costs (§11.9).
