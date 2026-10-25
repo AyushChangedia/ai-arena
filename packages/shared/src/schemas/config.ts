@@ -126,6 +126,12 @@ export type ChargeName = keyof FeesConfig['charges'];
 export const SLOTS = ['openai', 'anthropic', 'google', 'meta', 'deepseek'] as const;
 export type ModelSlot = (typeof SLOTS)[number];
 
+/** Roster tiers (SPEC §3.2). `free` uses only OpenRouter `:free` models and fields the labs that offer one. */
+export const TIERS = ['budget', 'flagship', 'free'] as const;
+export type Tier = (typeof TIERS)[number];
+/** A free-tier season still needs a real field of models. */
+export const MIN_FREE_PARTICIPANTS = 3;
+
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 const usdPerToken = z.string().regex(/^\d+(\.\d+)?(e-?\d+)?$/i, 'expected a decimal string');
 
@@ -156,7 +162,7 @@ export const benchmarkEntrySchema = z
 export const modelsConfigSchema = z
   .object({
     $comment: z.string().optional(),
-    tier: z.enum(['budget', 'flagship']),
+    tier: z.enum(TIERS),
     approved: z.boolean(),
     approvedBy: z.string().nullable(),
     approvedOn: isoDate.nullable(),
@@ -170,25 +176,45 @@ export const modelsConfigSchema = z
       })
       .strict(),
     totalMonthlyEstimateUsd: z.number().min(0),
-    participants: z.array(modelEntrySchema).length(5),
+    participants: z.array(modelEntrySchema).min(MIN_FREE_PARTICIPANTS).max(SLOTS.length),
     alternatives: z.array(modelEntrySchema),
     benchmarks: z.object({ index: benchmarkEntrySchema, monkey: benchmarkEntrySchema }).strict(),
   })
   .strict()
   .superRefine((cfg, ctx) => {
     const slots = new Set(cfg.participants.map((p) => p.slot));
-    if (slots.size !== 5)
+    if (slots.size !== cfg.participants.length)
       ctx.addIssue({
         code: 'custom',
-        message: 'each of the five slots must appear exactly once',
+        message: 'each slot may appear only once',
         path: ['participants'],
       });
+    // Paid tiers field all five labs. The free tier fields the labs that offer a free model.
+    if (cfg.tier !== 'free' && slots.size !== SLOTS.length)
+      ctx.addIssue({
+        code: 'custom',
+        message: `the ${cfg.tier} tier needs all five slots exactly once`,
+        path: ['participants'],
+      });
+    if (cfg.tier === 'free') {
+      const paid = cfg.participants.filter(
+        (p) =>
+          Number(p.pricing.promptUsdPerToken) !== 0 ||
+          Number(p.pricing.completionUsdPerToken) !== 0,
+      );
+      if (paid.length)
+        ctx.addIssue({
+          code: 'custom',
+          message: `the free tier may only hold free models; priced: ${paid.map((p) => p.openrouterId).join(', ')}`,
+          path: ['participants'],
+        });
+    }
     const codes = new Set([
       ...cfg.participants.map((p) => p.shortCode),
       cfg.benchmarks.index.shortCode,
       cfg.benchmarks.monkey.shortCode,
     ]);
-    if (codes.size !== 7)
+    if (codes.size !== cfg.participants.length + 2)
       ctx.addIssue({
         code: 'custom',
         message: 'short codes must be unique',
@@ -205,11 +231,18 @@ export const rosterRulesSchema = z
       z
         .object({
           shortCode: z.string().regex(/^[A-Z]{3}$/),
+          /** Short code for the free-tier pick, when it is a different model line (e.g. Llama for Meta). */
+          freeShortCode: z
+            .string()
+            .regex(/^[A-Z]{3}$/)
+            .optional(),
           color: hexColor,
           tiers: z
             .object({
               budget: z.array(z.string()).min(1),
               flagship: z.array(z.string()).min(1),
+              // Empty when the lab offers no free model: the slot sits out a free-tier season.
+              free: z.array(z.string()).default([]),
             })
             .strict(),
           alternatives: z

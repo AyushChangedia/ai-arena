@@ -101,7 +101,7 @@ All values live in `config/arena.json`. Code reads the config; the `/rules` page
 | Universe | Nifty 50 constituents, NSE cash market, EQ series (`config/universe/nifty50.json`) |
 | Starting cash | ₹1,00,000 per participant (10,000,000 paise) |
 | Product | Long-only delivery. No short selling, leverage, F&O or intraday margin |
-| Round times | 09:30 to 15:00 IST every 30 minutes, 12 rounds, NSE trading days only |
+| Round times | Set in `arena.json` `schedule`. Free-tier seasons (the owner's choice, 2026-10-25): 09:30, 11:00, 12:30 and 14:00 IST, 4 rounds. Paid tiers: 09:30 to 15:00 IST every 30 minutes, 12 rounds. NSE trading days only |
 | Max actions per round | 5 |
 | Concentration limit | A BUY may not take that stock above 25% of total portfolio value. Price drift above 25% is allowed |
 | Order size | Whole shares, quantity ≥ 1, no partial fills |
@@ -119,7 +119,7 @@ All values live in `config/arena.json`. Code reads the config; the `/rules` page
 
 Configured in `config/models.json`:
 
-- Five model slots: `openai`, `anthropic`, `google`, `meta`, `deepseek`.
+- Five model slots: `openai`, `anthropic`, `google`, `meta`, `deepseek`. A free-tier season fields only the slots whose lab offers a free model (§3.2).
 - Two benchmarks that appear on the leaderboard but are visually quieter:
   - **Nifty 50**: ₹1,00,000 "invested" in the index at the season's first fill snapshot, no costs. Value = 1,00,000 × index now ÷ index at start.
   - **Monkey**: a seeded random trader that follows the same rules and pays the same costs (§11.9).
@@ -127,7 +127,7 @@ Configured in `config/models.json`:
 ### 3.2 Picking the models (Phase 3, human approves)
 
 1. Call OpenRouter `GET /api/v1/models`.
-2. For each slot, pick that lab's current model in the chosen tier. `budget` (default) = each lab's fast, cheap tier. `flagship` = each lab's top general model. Mixing tiers across slots is not allowed. Prefer dated or pinned model IDs.
+2. For each slot, pick that lab's current model in the chosen tier. `budget` = each lab's fast, cheap tier. `flagship` = each lab's top general model. `free` (the owner's choice for running at no cost, 2026-10-25) = each lab's newest OpenRouter `:free` model; a lab with no free model (currently Anthropic) sits out the season, and a free roster needs at least 3 models. Mixing tiers across slots is not allowed. Prefer dated or pinned model IDs. Free models come with OpenRouter's limits (50 free requests a day on an account that has never bought credit, 20 a minute) and their capacity can disappear; a round a free model can't answer is missed with its reason, like any other provider failure. Use a schedule whose daily calls (models × rounds, plus repairs) stay well under the daily limit.
 3. Meta: the open Llama line stopped at Llama 4; Meta's current model is Muse Spark (closed, available through Meta's API and OpenRouter). Offer the human a choice: Muse Spark (current), or Llama 4 Maverick (older and cheap, a deliberate underdog). Show both in the approval table.
 4. For each model record: OpenRouter ID, display name, 3-letter short code, jersey colour (§16.1), `supported_parameters` (structured outputs, reasoning, temperature), price per million input and output tokens, context length.
 5. Show the human the table and an estimated monthly cost (§9.7). Write `config/models.json` only after they approve.
@@ -359,9 +359,10 @@ OpenRouter returns the serving model in the response. It must equal the configur
 
 ### 9.7 Budget
 
-- `models.json` sets a monthly USD cap per participant (default: 1.5 × that model's approved monthly estimate). Before each call, if that participant's recorded spend this calendar month is at or above the cap, skip the call: status `SKIPPED_BUDGET`, public status "Paused (budget)".
-- The pre-market job checks the key's remaining credit (`/api/v1/key` or `/api/v1/credits`, whichever is current) and raises a warning under $3 and a critical alert under $1.
-- Cost estimate shown in the roster approval table: rounds per month (12 × ~21) × (estimated input tokens × input price + estimated output tokens incl. reasoning × output price), per model and total.
+- `models.json` sets a monthly USD cap per participant (default: 1.5 × that model's approved monthly estimate). Before each call, if that participant's recorded spend this calendar month is at or above the cap, skip the call: status `SKIPPED_BUDGET`, public status "Paused (budget)". A free model's cap is $0: it runs while its calls cost nothing and is paused at the first billed call.
+- The pre-market job checks the key's remaining credit (`/api/v1/key` or `/api/v1/credits`, whichever is current) and raises a warning under $3 and a critical alert under $1. With a free-tier roster no credit is needed, so these thresholds don't apply.
+- Cost estimate shown in the roster approval table: rounds per month (rounds per day × ~21) × (estimated input tokens × input price + estimated output tokens incl. reasoning × output price), per model and total. For the free tier the table shows $0 and the model calls per day against the free daily limit.
+- A `:free` model's responses may name it without the `:free` suffix; that counts as the same model for the identity check (§9.6).
 
 ### 9.8 Recording
 

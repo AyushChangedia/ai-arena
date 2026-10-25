@@ -241,6 +241,15 @@ export interface World {
   setLlm: (b: ModelBehaviour) => void;
 }
 
+/**
+ * The committed arena config with a fixed 12-round, 30-minute schedule, so the round tests
+ * don't depend on the schedule a season happens to use.
+ */
+export function testArena() {
+  const a = must(loadArena());
+  return { ...a, schedule: { ...a.schedule, everyMinutes: 30, lastSlot: '15:00' } };
+}
+
 export function makeWorld(
   engineUrl: string,
   start: Date,
@@ -265,7 +274,7 @@ export function makeWorld(
       world.llmBodies = llm.bodies;
     },
     deps: {
-      arena: must(loadArena()),
+      arena: testArena(),
       fees: must(loadFees()),
       universe: TEST_UNIVERSE,
       calendar: CALENDAR,

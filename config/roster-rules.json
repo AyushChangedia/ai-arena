@@ -1,12 +1,13 @@
 {
-  "$comment": "How `pnpm engine roster` picks each slot from OpenRouter's /api/v1/models (SPEC §3.2). Patterns are regular expressions over model IDs; the newest matching model wins, and a dated variant of it is preferred. Aliases (~...-latest), :free, :batch and preview builds are excluded because they can change the serving model without notice.",
+  "$comment": "How `pnpm engine roster` picks each slot from OpenRouter's /api/v1/models (SPEC §3.2). Patterns are regular expressions over model IDs; the newest matching model wins, and a dated variant of it is preferred. Aliases (~...-latest), :batch and preview builds are excluded because they can change the serving model without notice. The free tier picks only `:free` variants (SPEC §3.2); a slot with no free patterns sits out a free-tier season. Paid-tier patterns end in `$`, so they never match a `:free` ID.",
   "slots": {
     "openai": {
       "shortCode": "GPT",
       "color": "#5AB8F0",
       "tiers": {
         "budget": ["^openai/gpt-\\d+(\\.\\d+)?-mini(-\\d{4}-\\d{2}-\\d{2})?$"],
-        "flagship": ["^openai/gpt-\\d+(\\.\\d+)?(-\\d{4}-\\d{2}-\\d{2})?$"]
+        "flagship": ["^openai/gpt-\\d+(\\.\\d+)?(-\\d{4}-\\d{2}-\\d{2})?$"],
+        "free": ["^openai/gpt-oss-\\d+b:free$"]
       },
       "alternatives": []
     },
@@ -21,7 +22,8 @@
         "flagship": [
           "^anthropic/claude-opus-\\d+(\\.\\d+)?(-\\d{8})?$",
           "^anthropic/claude-\\d+(\\.\\d+)?-opus(-\\d{8})?$"
-        ]
+        ],
+        "free": []
       },
       "alternatives": []
     },
@@ -30,7 +32,11 @@
       "color": "#F48FC1",
       "tiers": {
         "budget": ["^google/gemini-\\d+(\\.\\d+)?-flash(-\\d{3}|-\\d{8})?$"],
-        "flagship": ["^google/gemini-\\d+(\\.\\d+)?-pro(-\\d{3}|-\\d{8})?$"]
+        "flagship": ["^google/gemini-\\d+(\\.\\d+)?-pro(-\\d{3}|-\\d{8})?$"],
+        "free": [
+          "^google/gemini-\\d+(\\.\\d+)?-flash(-\\d{3}|-\\d{8})?:free$",
+          "^google/gemma-\\d+-\\d+b-it:free$"
+        ]
       },
       "alternatives": []
     },
@@ -39,7 +45,11 @@
       "color": "#2EC4C4",
       "tiers": {
         "budget": ["^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?$"],
-        "flagship": ["^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?$"]
+        "flagship": ["^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?$"],
+        "free": [
+          "^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?:free$",
+          "^meta-llama/llama-\\d+(\\.\\d+)?-[a-z0-9.-]+:free$"
+        ]
       },
       "alternatives": [
         {
@@ -47,7 +57,8 @@
           "pattern": "^meta-llama/llama-4-maverick(-\\d+)?$",
           "shortCode": "LMA"
         }
-      ]
+      ],
+      "freeShortCode": "LMA"
     },
     "deepseek": {
       "shortCode": "DSK",
@@ -60,14 +71,14 @@
         "flagship": [
           "^deepseek/deepseek-v\\d+(\\.\\d+)?-pro(-\\d{4})?$",
           "^deepseek/deepseek-r\\d+(-\\d{4})?$"
-        ]
+        ],
+        "free": ["^deepseek/deepseek-[a-z0-9.-]+:free$"]
       },
       "alternatives": []
     }
   },
   "exclude": [
     "^~",
-    ":free$",
     ":batch$",
     ":extended$",
     ":thinking$",
@@ -79,10 +90,19 @@
     "search",
     "-lite",
     "-nano",
-    "contributor"
+    "contributor",
+    "distill"
   ],
   "benchmarks": {
-    "index": { "displayName": "Nifty 50", "shortCode": "NIF", "color": "#F2F5F9" },
-    "monkey": { "displayName": "Monkey (random)", "shortCode": "MKY", "color": "#9CA0B0" }
+    "index": {
+      "displayName": "Nifty 50",
+      "shortCode": "NIF",
+      "color": "#F2F5F9"
+    },
+    "monkey": {
+      "displayName": "Monkey (random)",
+      "shortCode": "MKY",
+      "color": "#9CA0B0"
+    }
   }
 }

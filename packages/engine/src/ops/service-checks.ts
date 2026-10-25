@@ -49,6 +49,9 @@ export function serviceChecks(extra: ServiceCheck[] = []): ServiceCheck[] {
           apiKey: ctx.envCheck.env.OPENROUTER_API_KEY,
         }).remainingCreditUsd();
         const arena = baseContext().arena;
+        const m = loadModels();
+        if (m.ok && m.value.tier === 'free')
+          return `key works; free-tier roster, no credit needed (${c.remainingUsd === null ? c.source : `$${c.remainingUsd.toFixed(2)} on the account`})`;
         if (c.remainingUsd !== null && c.remainingUsd < arena.llm.creditCriticalUsd)
           throw new Error(
             `key works, but only $${c.remainingUsd.toFixed(2)} of credit is left (${c.source})`,

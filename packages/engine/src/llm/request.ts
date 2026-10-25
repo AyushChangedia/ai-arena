@@ -62,8 +62,11 @@ export function isSameModel(
   entry: Pick<ModelEntry, 'openrouterId' | 'canonicalSlug'>,
   serving: string,
 ): boolean {
+  // A `:free` variant is the same model on a free route; responses may name it without the suffix.
+  const base = entry.openrouterId.endsWith(':free') ? entry.openrouterId.slice(0, -5) : null;
   return (
     serving === entry.openrouterId ||
+    (base !== null && serving === base) ||
     (entry.canonicalSlug !== null && serving === entry.canonicalSlug)
   );
 }

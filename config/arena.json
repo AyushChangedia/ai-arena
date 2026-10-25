@@ -5,8 +5,8 @@
   "product": "long_only_delivery",
   "schedule": {
     "firstSlot": "09:30",
-    "lastSlot": "15:00",
-    "everyMinutes": 30,
+    "lastSlot": "14:00",
+    "everyMinutes": 90,
     "graceMinutes": 20,
     "preMarketWindow": {
       "from": "08:30",
@@ -55,7 +55,7 @@
     "estimate": {
       "inputTokensPerCall": 6000,
       "outputTokensPerCall": 1500,
-      "roundsPerMonth": 252
+      "roundsPerMonth": 84
     }
   },
   "display": {

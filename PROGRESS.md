@@ -77,6 +77,18 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
 ## Not verified / known gaps
 
+- **Free tier (owner's decision, 2026-10-25: "I don't want to spend anything").** SPEC §3, §3.1, §3.2 and §9.7 updated. Changes:
+  - `config/arena.json`: 4 rounds a day (09:30, 11:00, 12:30, 14:00; `everyMinutes` 90, `lastSlot` 14:00; `roundsPerMonth` 84).
+  - Roster tier `free` (`pnpm engine roster --tier free`, smoke.yml `tier` input). It picks each lab's newest `:free` model. A lab with no free model sits out (Anthropic). A free roster needs at least 3 models, and the schema rejects a priced model in it.
+  - A $0 cap means "run while free, pause at the first billed call".
+  - The pre-market credit warning and the doctor's credit check don't apply to a free roster.
+  - The identity check accepts a `:free` model's response named without the suffix.
+  - Web copy no longer hard-codes "five models" or "12 rounds".
+  - Tests: the schedule-logic and round integration tests now use an explicit 30-minute test schedule (`testArena()` in `packages/engine/test/helpers/world.ts`). A new test pins the committed config to 4 rounds. New tests cover the free roster, the $0 cap and the `:free` identity match. The e2e seed uses the committed schedule.
+  - Verified: `pnpm check` (246 unit tests), `pnpm test:int` (59), web build, and Playwright (37 passed, 2 skipped by design).
+  - **Not verified:** which `:free` models OpenRouter lists today (openrouter.ai is unreachable from the build environment); the roster patterns in `config/roster-rules.json` are a best guess until `smoke → roster` (tier free) runs.
+  - The committed `config/models.json` is still the paid budget roster until the owner replaces it.
+  - Free capacity can disappear on any day; such rounds are missed with the provider's reason.
 - Addition beyond SPEC §21 Phase 1 step 1, flagged: role passwords are set by `migrate.yml` (`pnpm db:passwords`, `packages/db/src/role-passwords.ts`) from the GitHub secrets `ENGINE_RW_PASSWORD` and `WEB_RO_PASSWORD`, instead of in the Neon console. Neon's console refuses to reset a role created without a password ("cannot update password for role without password"), and its SQL editor failed to wake the suspended compute. Verified locally by `packages/db/test/role-passwords.int.test.ts` (3 tests: a new password works for login, errors never contain the password, only 24+ letters-and-digits passwords accepted). Not verified against Neon yet.
 
 - **Fixed in Phase 6: test data had leaked into config.** `config/universe/nifty50.json` committed in the Phase 4 commit was the 50-row test universe (symbols S0…S49) written by an early version of the import-universe integration test, before config paths were read at call time. It is removed. A new guard (`universe-data` in `scripts/guards/guards.ts`, with self-tests) checks every ISIN check digit in `config/universe/`, which the leaked rows fail. No other tracked file outside source directories came from tests (checked with `git ls-files`).

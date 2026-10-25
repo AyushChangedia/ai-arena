@@ -224,7 +224,13 @@ export async function runPreMarket(
   try {
     const credit = await d.llm().remainingCreditUsd();
     detail.creditUsd = credit.remainingUsd;
-    if (credit.remainingUsd !== null && credit.remainingUsd < d.arena.llm.creditWarnUsd) {
+    // A free-tier roster spends nothing, so a zero balance is expected, not a warning.
+    const freeRoster = d.models?.tier === 'free';
+    if (
+      !freeRoster &&
+      credit.remainingUsd !== null &&
+      credit.remainingUsd < d.arena.llm.creditWarnUsd
+    ) {
       const critical = credit.remainingUsd < d.arena.llm.creditCriticalUsd;
       await openIncident(
         d.db,

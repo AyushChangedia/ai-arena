@@ -3,7 +3,7 @@ import { join, dirname } from 'node:path';
 import { DateTime } from 'luxon';
 import type pg from 'pg';
 import { createPool } from '@arena/db';
-import { SLOTS, type ModelEntry } from '@arena/shared/schemas';
+import { SLOTS, TIERS, MIN_FREE_PARTICIPANTS, type ModelEntry } from '@arena/shared/schemas';
 import { formatUsd } from '@arena/shared/format';
 import type { ParsedArgs } from '../ops/args';
 import { flagString } from '../ops/args';
@@ -42,12 +42,12 @@ import {
 import { writeStepSummary, mdTable } from '../ops/summary';
 import type { PortfolioState } from '../core/portfolio';
 
-/** pnpm engine roster --tier budget|flagship [--write] [--out path] */
+/** pnpm engine roster --tier budget|flagship|free [--write] [--out path] */
 export async function rosterCommand(args: ParsedArgs): Promise<number> {
   const ctx = baseContext();
   const tier = (flagString(args, 'tier') ?? 'budget') as Tier;
-  if (tier !== 'budget' && tier !== 'flagship')
-    throw new Error('--tier must be budget or flagship');
+  if (!(TIERS as readonly string[]).includes(tier))
+    throw new Error(`--tier must be one of ${TIERS.join(', ')}`);
   const rules = must(loadRosterRules());
   const { models, skipped } = await new OpenRouterClient({}).listModels();
   const proposal = proposeRoster(models, rules, tier, ctx.arena, new Date());
@@ -56,7 +56,9 @@ export async function rosterCommand(args: ParsedArgs): Promise<number> {
   writeStepSummary(md);
   if (!proposal.config) {
     process.stderr.write(
-      `No model matched for: ${proposal.missingSlots.join(', ')}. Update config/roster-rules.json.\n`,
+      proposal.missingSlots.length
+        ? `No model matched for: ${proposal.missingSlots.join(', ')}. Update config/roster-rules.json.\n`
+        : `Only ${proposal.picks.filter((x) => x.chosen).length} free models matched; a season needs at least ${MIN_FREE_PARTICIPANTS}. Update config/roster-rules.json.\n`,
     );
     return 1;
   }
