@@ -21,6 +21,7 @@ import { RevealWatcher } from '@/components/reveal-watcher';
 import { ShareButton } from '@/components/share-button';
 import { Footer } from '@/components/footer';
 import { SiteHeader } from '@/components/site-header';
+import { ModelCards } from '@/components/model-cards';
 
 export async function generateMetadata(): Promise<Metadata> {
   'use cache';
@@ -69,7 +70,7 @@ async function Arena() {
   const season = a.season;
   const hasMarks = a.marks.length > 0;
   const subline = a.latestRound
-    ? `Round ${roundNumber(a.latestRound.slotTime)} of 12 at ${a.latestRound.slotTime} IST, ${a.latestRound.tradingDate}`
+    ? `Round ${roundNumber(a.latestRound.slotTime)} of ${slotTimes().length} at ${a.latestRound.slotTime} IST, ${a.latestRound.tradingDate}`
     : null;
 
   if (!season || !hasMarks) {
@@ -106,6 +107,17 @@ async function Arena() {
             .
           </p>
         </section>
+        {season ? (
+          <ModelCards
+            participants={a.participants}
+            standings={[]}
+            marks={[]}
+            holdings={[]}
+            latestRound={null}
+            latestDecisions={[]}
+            startingCashPaise={season.startingCashPaise}
+          />
+        ) : null}
       </PageShell>
     );
   }
@@ -131,6 +143,15 @@ async function Arena() {
       <div className="-mx-4">
         <ScoreBug items={scoreItems(a)} revealKey={a.latestRound?.id ?? null} />
       </div>
+      <ModelCards
+        participants={a.participants}
+        standings={a.standings}
+        marks={a.marks}
+        holdings={a.holdings}
+        latestRound={a.latestRound}
+        latestDecisions={a.latestDecisions}
+        startingCashPaise={season.startingCashPaise}
+      />
       <div className="mt-4 grid gap-6 lg:grid-cols-12">
         <div className="min-w-0 space-y-6 lg:col-span-8">
           <section

@@ -1,4 +1,11 @@
-import { formatInr, formatInrCompact, formatPct, formatPts, direction } from '@arena/shared/format';
+import {
+  formatInr,
+  formatInrChange,
+  formatInrCompact,
+  formatPct,
+  formatPts,
+  direction,
+} from '@arena/shared/format';
 
 /** A value that couldn't be sourced: "—" with the reason as a tooltip (SPEC §2.1.2). Never 0. */
 export function Missing({ reason }: { reason: string }) {
@@ -60,4 +67,19 @@ export function Pts({ diff, missing }: { diff: number | null | undefined; missin
 export function Ratio({ value, missing }: { value: number | null | undefined; missing?: string }) {
   if (value === null || value === undefined) return <Missing reason={missing ?? 'No value yet'} />;
   return <span className="num">{(value * 100).toFixed(1)}%</span>;
+}
+
+/** Profit or loss in rupees: green with ▲ and +, red with ▼ and −, grey when flat (SPEC §16.1). */
+export function Pnl({
+  paise,
+  decimals = 2,
+  missing,
+}: {
+  paise: bigint | null | undefined;
+  decimals?: 0 | 2;
+  missing?: string;
+}) {
+  if (paise === null || paise === undefined) return <Missing reason={missing ?? 'No value yet'} />;
+  const cls = paise > 0n ? 'text-gain' : paise < 0n ? 'text-loss' : 'text-text-2';
+  return <span className={`num ${cls}`}>{formatInrChange(paise, { decimals })}</span>;
 }

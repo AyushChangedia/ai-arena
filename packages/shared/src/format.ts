@@ -65,6 +65,12 @@ export function formatPct(fraction: number, opts: { arrow?: boolean } = {}): str
   return `${arrow ? '▼ ' : ''}${MINUS}${abs}%`;
 }
 
+/** A change in rupees, signed, with ▲/▼ so colour is never the only cue: ▲ +₹4,212.00, ▼ −₹2,100.00. */
+export function formatInrChange(paise: bigint, opts: { decimals?: 0 | 2 } = {}): string {
+  if (paise === 0n) return formatInr(0n, opts);
+  return paise > 0n ? `▲ +${formatInr(paise, opts)}` : `▼ ${formatInr(paise, opts)}`;
+}
+
 /** Percentage points, signed, for "vs Nifty": +1.20 pts. */
 export function formatPts(fractionDiff: number): string {
   const hundredths = Math.round(fractionDiff * 10000);
