@@ -65,6 +65,17 @@ export function formatPct(fraction: number, opts: { arrow?: boolean } = {}): str
   return `${arrow ? '▼ ' : ''}${MINUS}${abs}%`;
 }
 
+/**
+ * A model's name for display: OpenRouter's "Lab: Name" without the lab prefix, and without the
+ * " (free)" tag that free variants carry (the tier is shown on /rules, not in every name).
+ */
+export function cleanModelName(name: string): string {
+  return name
+    .replace(/^[^:]+:\s*/, '')
+    .replace(/\s*\(free\)\s*$/i, '')
+    .trim();
+}
+
 /** A change in rupees, signed, with ▲/▼ so colour is never the only cue: ▲ +₹4,212.00, ▼ −₹2,100.00. */
 export function formatInrChange(paise: bigint, opts: { decimals?: 0 | 2 } = {}): string {
   if (paise === 0n) return formatInr(0n, opts);

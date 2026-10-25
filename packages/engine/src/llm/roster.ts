@@ -12,6 +12,7 @@ import type {
 import { SLOTS, MIN_FREE_PARTICIPANTS, MAX_PARTICIPANTS } from '@arena/shared/schemas';
 import type { OrModel } from './openrouter';
 import { slotTimes } from '../round/schedule';
+import { cleanModelName } from '@arena/shared/format';
 
 export type { Tier };
 
@@ -80,7 +81,7 @@ export function toEntry(
     slot,
     openrouterId: m.id,
     canonicalSlug: m.canonical_slug ?? null,
-    displayName: m.name.replace(/^[^:]+:\s*/, ''),
+    displayName: cleanModelName(m.name),
     shortCode,
     color,
     created: m.created ?? null,

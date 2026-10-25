@@ -5,6 +5,7 @@ import {
   formatInrCompact,
   formatPct,
   formatInrChange,
+  cleanModelName,
   formatPts,
   direction,
   formatTimeIst,
@@ -39,6 +40,11 @@ describe('formatters (SPEC §16.6)', () => {
     expect(formatInrCompact(150_00_00_000n * 100n)).toBe('₹150Cr');
   });
   it('formats percentages with arrows and true minus', () => {
+    expect(cleanModelName('Google: Gemma 4 31B (free)')).toBe('Gemma 4 31B');
+    expect(cleanModelName('Flint (free)')).toBe('Flint');
+    expect(cleanModelName('Nemotron 3.5 Super VL (Free) ')).toBe('Nemotron 3.5 Super VL');
+    expect(cleanModelName('OpenAI: GPT-5.4 Mini (2026-04-27)')).toBe('GPT-5.4 Mini (2026-04-27)');
+    expect(cleanModelName('Monkey (random)')).toBe('Monkey (random)');
     expect(formatInrChange(421_200n)).toBe('▲ +₹4,212.00');
     expect(formatInrChange(-210_000n)).toBe('▼ −₹2,100.00');
     expect(formatInrChange(0n)).toBe('₹0.00');
