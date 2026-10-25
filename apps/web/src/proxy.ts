@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { PARTICIPANT_SLUGS } from './lib/slugs';
 
 /**
  * Cheap, database-free 404s for malformed URLs, so they return a real 404 status (SPEC §16.3 item 9).
  * Well-formed IDs that don't exist yet get the site's 404 page, streamed with a noindex tag.
  */
-const SLUGS = new Set(['openai', 'anthropic', 'google', 'meta', 'deepseek', 'monkey', 'nifty50']);
+const SLUGS = new Set(PARTICIPANT_SLUGS);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function proxy(req: NextRequest) {

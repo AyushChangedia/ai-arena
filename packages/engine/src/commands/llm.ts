@@ -3,7 +3,7 @@ import { join, dirname } from 'node:path';
 import { DateTime } from 'luxon';
 import type pg from 'pg';
 import { createPool } from '@arena/db';
-import { SLOTS, TIERS, MIN_FREE_PARTICIPANTS, type ModelEntry } from '@arena/shared/schemas';
+import { TIERS, MIN_FREE_PARTICIPANTS, type ModelEntry } from '@arena/shared/schemas';
 import { formatUsd } from '@arena/shared/format';
 import type { ParsedArgs } from '../ops/args';
 import { flagString } from '../ops/args';
@@ -17,7 +17,7 @@ import {
   configDir,
 } from '../config/load';
 import { OpenRouterClient } from '../llm/openrouter';
-import { proposeRoster, rosterTable, type Tier } from '../llm/roster';
+import { proposeRoster, rosterTable, freeModelList, type Tier } from '../llm/roster';
 import { decideWithModel } from '../llm/decide';
 import { renderSystemPrompt, renderUserMessage } from '../llm/prompt';
 import { freshMapping, snapshotFor, inMarketHours } from '../data/market';
@@ -51,25 +51,30 @@ export async function rosterCommand(args: ParsedArgs): Promise<number> {
   const rules = must(loadRosterRules());
   const { models, skipped } = await new OpenRouterClient({}).listModels();
   const proposal = proposeRoster(models, rules, tier, ctx.arena, new Date());
-  const md = `## Proposed roster (${tier})\n\nFrom ${models.length} models on OpenRouter${skipped ? ` (${skipped} skipped: unexpected shape)` : ''}, ${new Date().toISOString()}.\n\n${rosterTable(proposal)}\n`;
+  const freeList = tier === 'free' ? `\n\n${freeModelList(models)}` : '';
+  const md = `## Proposed roster (${tier})\n\nFrom ${models.length} models on OpenRouter${skipped ? ` (${skipped} skipped: unexpected shape)` : ''}, ${new Date().toISOString()}.\n\n${rosterTable(proposal)}${freeList}\n`;
   process.stdout.write(`${md}\n`);
   writeStepSummary(md);
   if (!proposal.config) {
     process.stderr.write(
       proposal.missingSlots.length
         ? `No model matched for: ${proposal.missingSlots.join(', ')}. Update config/roster-rules.json.\n`
-        : `Only ${proposal.picks.filter((x) => x.chosen).length} free models matched; a season needs at least ${MIN_FREE_PARTICIPANTS}. Update config/roster-rules.json.\n`,
+        : `Only ${proposal.participants.length} free models matched; a season needs at least ${MIN_FREE_PARTICIPANTS}. Update config/roster-rules.json.\n`,
     );
     return 1;
   }
   const out =
     flagString(args, 'out') ??
     (args.flags.write === true ? join(configDir(), 'models.json') : undefined);
+  const json = `${JSON.stringify(proposal.config, null, 2)}\n`;
   if (out) {
     mkdirSync(dirname(out), { recursive: true });
-    writeFileSync(out, `${JSON.stringify(proposal.config, null, 2)}\n`);
+    writeFileSync(out, json);
     process.stdout.write(`Wrote ${out} with "approved": false.\n`);
   }
+  // Also in the log, so the proposed file can be reviewed and committed without downloading the
+  // artifact. It holds only public model data.
+  process.stdout.write(`\n--- proposed config/models.json ---\n${json}--- end ---\n`);
   return 0;
 }
 
@@ -93,7 +98,10 @@ export async function decideCommand(args: ParsedArgs): Promise<number> {
   const which = flagString(args, 'participant') ?? 'all';
   const entries: ModelEntry[] =
     which === 'all' ? models.participants : models.participants.filter((p) => p.slot === which);
-  if (!entries.length) throw new Error(`--participant must be one of: all, ${SLOTS.join(', ')}`);
+  if (!entries.length)
+    throw new Error(
+      `--participant must be one of: all, ${models.participants.map((p) => p.slot).join(', ')}`,
+    );
 
   const now = new Date();
   const tradingDate = DateTime.fromJSDate(now, { zone: IST }).toISODate()!;

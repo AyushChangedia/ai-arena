@@ -123,21 +123,30 @@ export const feesConfigSchema = z
 export type FeesConfig = z.infer<typeof feesConfigSchema>;
 export type ChargeName = keyof FeesConfig['charges'];
 
+/** The five labs a paid-tier season fields, in display order (SPEC §3.1). */
 export const SLOTS = ['openai', 'anthropic', 'google', 'meta', 'deepseek'] as const;
-export type ModelSlot = (typeof SLOTS)[number];
+/** A participant slot: one lab. Paid tiers use SLOTS; the free tier can field any lab in roster-rules.json. */
+export type ModelSlot = string;
+/** Slugs the benchmarks use on the site, so no lab may take them. */
+export const BENCHMARK_SLUGS = ['monkey', 'nifty50'] as const;
+export const slotId = z
+  .string()
+  .regex(/^[a-z][a-z0-9]{1,23}$/, 'a slot is 2–24 lowercase letters and digits')
+  .refine((s) => !(BENCHMARK_SLUGS as readonly string[]).includes(s), 'reserved for a benchmark');
 
 /** Roster tiers (SPEC §3.2). `free` uses only OpenRouter `:free` models and fields the labs that offer one. */
 export const TIERS = ['budget', 'flagship', 'free'] as const;
 export type Tier = (typeof TIERS)[number];
-/** A free-tier season still needs a real field of models. */
+/** A free-tier season still needs a real field of models, and the site is laid out for a handful. */
 export const MIN_FREE_PARTICIPANTS = 3;
+export const MAX_PARTICIPANTS = 6;
 
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 const usdPerToken = z.string().regex(/^\d+(\.\d+)?(e-?\d+)?$/i, 'expected a decimal string');
 
 export const modelEntrySchema = z
   .object({
-    slot: z.enum(SLOTS),
+    slot: slotId,
     openrouterId: z.string().min(3),
     canonicalSlug: z.string().nullable(),
     displayName: z.string().min(1),
@@ -176,7 +185,7 @@ export const modelsConfigSchema = z
       })
       .strict(),
     totalMonthlyEstimateUsd: z.number().min(0),
-    participants: z.array(modelEntrySchema).min(MIN_FREE_PARTICIPANTS).max(SLOTS.length),
+    participants: z.array(modelEntrySchema).min(MIN_FREE_PARTICIPANTS).max(MAX_PARTICIPANTS),
     alternatives: z.array(modelEntrySchema),
     benchmarks: z.object({ index: benchmarkEntrySchema, monkey: benchmarkEntrySchema }).strict(),
   })
@@ -189,11 +198,11 @@ export const modelsConfigSchema = z
         message: 'each slot may appear only once',
         path: ['participants'],
       });
-    // Paid tiers field all five labs. The free tier fields the labs that offer a free model.
-    if (cfg.tier !== 'free' && slots.size !== SLOTS.length)
+    // Paid tiers field the five labs. The free tier fields the labs that offer a free model.
+    if (cfg.tier !== 'free' && (slots.size !== SLOTS.length || !SLOTS.every((x) => slots.has(x))))
       ctx.addIssue({
         code: 'custom',
-        message: `the ${cfg.tier} tier needs all five slots exactly once`,
+        message: `the ${cfg.tier} tier needs each of ${SLOTS.join(', ')} exactly once`,
         path: ['participants'],
       });
     if (cfg.tier === 'free') {
@@ -226,10 +235,13 @@ export type ModelsConfig = z.infer<typeof modelsConfigSchema>;
 export const rosterRulesSchema = z
   .object({
     $comment: z.string().optional(),
+    // Object key order is the display order.
     slots: z.record(
-      z.enum(SLOTS),
+      slotId,
       z
         .object({
+          /** The lab's name as people know it. */
+          lab: z.string().min(1).optional(),
           shortCode: z.string().regex(/^[A-Z]{3}$/),
           /** Short code for the free-tier pick, when it is a different model line (e.g. Llama for Meta). */
           freeShortCode: z
@@ -239,8 +251,9 @@ export const rosterRulesSchema = z
           color: hexColor,
           tiers: z
             .object({
-              budget: z.array(z.string()).min(1),
-              flagship: z.array(z.string()).min(1),
+              // Empty for a lab that only takes part in free-tier seasons.
+              budget: z.array(z.string()).default([]),
+              flagship: z.array(z.string()).default([]),
               // Empty when the lab offers no free model: the slot sits out a free-tier season.
               free: z.array(z.string()).default([]),
             })
@@ -262,7 +275,18 @@ export const rosterRulesSchema = z
     exclude: z.array(z.string()),
     benchmarks: z.object({ index: benchmarkEntrySchema, monkey: benchmarkEntrySchema }).strict(),
   })
-  .strict();
+  .strict()
+  .superRefine((r, ctx) => {
+    for (const slot of SLOTS) {
+      const t = r.slots[slot]?.tiers;
+      if (!t || !t.budget.length || !t.flagship.length)
+        ctx.addIssue({
+          code: 'custom',
+          message: `${slot} needs budget and flagship patterns (the paid tiers field all five labs)`,
+          path: ['slots', slot],
+        });
+    }
+  });
 export type RosterRules = z.infer<typeof rosterRulesSchema>;
 
 export const universeSchema = z

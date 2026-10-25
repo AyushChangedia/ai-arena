@@ -24,7 +24,18 @@ describe('config schemas', () => {
       num: 1,
       den: 1000,
     });
-    expect(Object.keys(rosterRulesSchema.parse(read('roster-rules.json')).slots)).toHaveLength(5);
+    // The five paid-tier labs first, then the labs that take part only with free models.
+    expect(Object.keys(rosterRulesSchema.parse(read('roster-rules.json')).slots)).toEqual([
+      'openai',
+      'anthropic',
+      'google',
+      'meta',
+      'deepseek',
+      'nvidia',
+      'thinkingmachines',
+      'xingchen',
+      'recursive',
+    ]);
   });
   it('rejects unknown keys and bad values in arena.json', () => {
     const a = read('arena.json');

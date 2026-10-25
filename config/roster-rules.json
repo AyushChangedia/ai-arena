@@ -1,7 +1,8 @@
 {
-  "$comment": "How `pnpm engine roster` picks each slot from OpenRouter's /api/v1/models (SPEC §3.2). Patterns are regular expressions over model IDs; the newest matching model wins, and a dated variant of it is preferred. Aliases (~...-latest), :batch and preview builds are excluded because they can change the serving model without notice. The free tier picks only `:free` variants (SPEC §3.2); a slot with no free patterns sits out a free-tier season. Paid-tier patterns end in `$`, so they never match a `:free` ID.",
+  "$comment": "How `pnpm engine roster` picks each slot from OpenRouter's /api/v1/models (SPEC §3.2). Patterns are regular expressions over model IDs; the newest matching model wins, and a dated variant of it is preferred. Aliases (~...-latest), :batch and preview builds are excluded because they can change the serving model without notice. Paid tiers (budget, flagship) field the five labs openai, anthropic, google, meta and deepseek; their patterns end in `$`, so they never match a `:free` ID. The free tier tries every slot below in order and takes each lab's newest `:free` model; a lab with no free model today sits out (at least 3 and at most 6 models). Free labs and patterns checked against OpenRouter's list on 2026-10-25.",
   "slots": {
     "openai": {
+      "lab": "OpenAI",
       "shortCode": "GPT",
       "color": "#5AB8F0",
       "tiers": {
@@ -12,6 +13,7 @@
       "alternatives": []
     },
     "anthropic": {
+      "lab": "Anthropic",
       "shortCode": "CLD",
       "color": "#B39DFF",
       "tiers": {
@@ -28,6 +30,7 @@
       "alternatives": []
     },
     "google": {
+      "lab": "Google",
       "shortCode": "GEM",
       "color": "#F48FC1",
       "tiers": {
@@ -41,6 +44,7 @@
       "alternatives": []
     },
     "meta": {
+      "lab": "Meta",
       "shortCode": "MSP",
       "color": "#2EC4C4",
       "tiers": {
@@ -61,6 +65,7 @@
       "freeShortCode": "LMA"
     },
     "deepseek": {
+      "lab": "DeepSeek",
       "shortCode": "DSK",
       "color": "#E6C88A",
       "tiers": {
@@ -73,6 +78,50 @@
           "^deepseek/deepseek-r\\d+(-\\d{4})?$"
         ],
         "free": ["^deepseek/deepseek-[a-z0-9.-]+:free$"]
+      },
+      "alternatives": []
+    },
+    "nvidia": {
+      "lab": "NVIDIA",
+      "shortCode": "NEM",
+      "color": "#7CD15C",
+      "tiers": {
+        "budget": [],
+        "flagship": [],
+        "free": ["^nvidia/nemotron-\\d+(\\.\\d+)?-(super|ultra)[a-z0-9.-]*:free$"]
+      },
+      "alternatives": []
+    },
+    "thinkingmachines": {
+      "lab": "Thinking Machines",
+      "shortCode": "INK",
+      "color": "#F58A4B",
+      "tiers": {
+        "budget": [],
+        "flagship": [],
+        "free": ["^thinkingmachines/inkling(-\\d+(\\.\\d+)?)?:free$"]
+      },
+      "alternatives": []
+    },
+    "xingchen": {
+      "lab": "Xingchen AGI",
+      "shortCode": "XNG",
+      "color": "#FF7070",
+      "tiers": {
+        "budget": [],
+        "flagship": [],
+        "free": ["^xingchen-agi/xing\\d+(\\.\\d+)?-[a-z0-9-]+:free$"]
+      },
+      "alternatives": []
+    },
+    "recursive": {
+      "lab": "Recursive",
+      "shortCode": "FLT",
+      "color": "#5C8DF5",
+      "tiers": {
+        "budget": [],
+        "flagship": [],
+        "free": ["^recursive/flint-v\\d+(\\.\\d+)?:free$"]
       },
       "alternatives": []
     }

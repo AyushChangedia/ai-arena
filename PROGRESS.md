@@ -86,7 +86,14 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
   - Web copy no longer hard-codes "five models" or "12 rounds".
   - Tests: the schedule-logic and round integration tests now use an explicit 30-minute test schedule (`testArena()` in `packages/engine/test/helpers/world.ts`). A new test pins the committed config to 4 rounds. New tests cover the free roster, the $0 cap and the `:free` identity match. The e2e seed uses the committed schedule.
   - Verified: `pnpm check` (246 unit tests), `pnpm test:int` (59), web build, and Playwright (37 passed, 2 skipped by design).
-  - **Not verified:** which `:free` models OpenRouter lists today (openrouter.ai is unreachable from the build environment); the roster patterns in `config/roster-rules.json` are a best guess until `smoke → roster` (tier free) runs.
+  - The first `smoke → roster` (tier free) run on 2026-10-25 found 17 free models on OpenRouter, and only Google among the five labs had one. With the owner's approval the lab slots became configurable:
+    - Slots are slugs defined in `config/roster-rules.json`; the paid tiers still require the five labs.
+    - The free tier tries every configured lab and skips any with no free model today. It needs 3 to 6 models.
+    - New free-only labs: NVIDIA (`NEM`), Thinking Machines (`INK`), Xingchen AGI (`XNG`) and Recursive (`FLT`), with colours checked against the §16.1 palette rules.
+    - The site's model pages and the proxy's slug check now come from the config (`apps/web/src/lib/slugs.ts`).
+    - The roster command lists every free model and prints the proposed `models.json` in the log.
+    - A test pins the picks against that day's real free list: Gemma 4 31B, Nemotron 3.5 Super VL, Inkling, Xing 4.0 and Flint v1.0.
+  - **Not verified:** the free models' answers (no `decide --dry` run yet), and how reliably their free capacity holds up on market days.
   - The committed `config/models.json` is still the paid budget roster until the owner replaces it.
   - Free capacity can disappear on any day; such rounds are missed with the provider's reason.
 - Addition beyond SPEC §21 Phase 1 step 1, flagged: role passwords are set by `migrate.yml` (`pnpm db:passwords`, `packages/db/src/role-passwords.ts`) from the GitHub secrets `ENGINE_RW_PASSWORD` and `WEB_RO_PASSWORD`, instead of in the Neon console. Neon's console refuses to reset a role created without a password ("cannot update password for role without password"), and its SQL editor failed to wake the suspended compute. Verified locally by `packages/db/test/role-passwords.int.test.ts` (3 tests: a new password works for login, errors never contain the password, only 24+ letters-and-digits passwords accepted). Not verified against Neon yet.
