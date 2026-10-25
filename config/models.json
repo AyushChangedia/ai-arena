@@ -1,93 +1,60 @@
 {
   "$comment": "Proposed by `pnpm engine roster`. A live season will not start until a human sets \"approved\": true (SPEC §3.2). Never change a model mid-season.",
-  "tier": "budget",
+  "tier": "free",
   "approved": false,
   "approvedBy": null,
   "approvedOn": null,
-  "generatedAt": "2026-10-24T22:32:03.842Z",
+  "generatedAt": "2026-10-25T06:47:24.227Z",
   "source": "https://openrouter.ai/api/v1/models",
   "estimateAssumptions": {
     "inputTokensPerCall": 6000,
     "outputTokensPerCall": 1500,
-    "roundsPerMonth": 252
+    "roundsPerMonth": 84
   },
-  "totalMonthlyEstimateUsd": 9.94,
+  "totalMonthlyEstimateUsd": 0,
   "participants": [
     {
-      "slot": "openai",
-      "openrouterId": "openai/gpt-5.4-mini",
-      "canonicalSlug": "openai/gpt-5.4-mini-20260317",
-      "displayName": "GPT-5.4 Mini",
-      "shortCode": "GPT",
-      "color": "#5AB8F0",
-      "created": 1773748178,
-      "contextLength": 400000,
+      "slot": "google",
+      "openrouterId": "google/gemma-4-31b-it:free",
+      "canonicalSlug": "google/gemma-4-31b-it-20260402",
+      "displayName": "Gemma 4 31B (free)",
+      "shortCode": "GEM",
+      "color": "#F48FC1",
+      "created": 1775148486,
+      "contextLength": 262144,
       "supportedParameters": [
         "include_reasoning",
-        "max_completion_tokens",
         "max_tokens",
         "reasoning",
-        "reasoning_effort",
         "response_format",
         "seed",
-        "structured_outputs",
+        "temperature",
         "tool_choice",
         "tools",
-        "verbosity"
+        "top_p"
       ],
       "pricing": {
-        "promptUsdPerToken": "0.00000075",
-        "completionUsdPerToken": "0.0000045"
+        "promptUsdPerToken": "0",
+        "completionUsdPerToken": "0"
       },
-      "monthlyEstimateUsd": 2.84,
-      "monthlyCapUsd": 4.26
+      "monthlyEstimateUsd": 0,
+      "monthlyCapUsd": 0
     },
     {
-      "slot": "anthropic",
-      "openrouterId": "anthropic/claude-haiku-5.5",
-      "canonicalSlug": "anthropic/claude-haiku-5.5-20261007",
-      "displayName": "Claude Haiku 5.5",
-      "shortCode": "CLD",
-      "color": "#B39DFF",
-      "created": 1791397883,
+      "slot": "nvidia",
+      "openrouterId": "nvidia/nemotron-3.5-super-vl:free",
+      "canonicalSlug": "nvidia/nemotron-3.5-super-vl-20261015",
+      "displayName": "Nemotron 3.5 Super VL (free)",
+      "shortCode": "NEM",
+      "color": "#7CD15C",
+      "created": 1792076662,
       "contextLength": 1000000,
       "supportedParameters": [
         "include_reasoning",
-        "max_completion_tokens",
         "max_tokens",
         "reasoning",
-        "reasoning_effort",
-        "response_format",
-        "stop",
-        "structured_outputs",
-        "tool_choice",
-        "tools",
-        "verbosity"
-      ],
-      "pricing": {
-        "promptUsdPerToken": "0.0000001",
-        "completionUsdPerToken": "0.0000005"
-      },
-      "monthlyEstimateUsd": 0.34,
-      "monthlyCapUsd": 0.51
-    },
-    {
-      "slot": "google",
-      "openrouterId": "google/gemini-3.8-flash",
-      "canonicalSlug": "google/gemini-3.8-flash-20260902",
-      "displayName": "Gemini 3.8 Flash",
-      "shortCode": "GEM",
-      "color": "#F48FC1",
-      "created": 1788362056,
-      "contextLength": 1048576,
-      "supportedParameters": [
-        "include_reasoning",
-        "max_tokens",
-        "reasoning",
-        "reasoning_effort",
         "response_format",
         "seed",
-        "stop",
         "structured_outputs",
         "temperature",
         "tool_choice",
@@ -95,63 +62,57 @@
         "top_p"
       ],
       "pricing": {
-        "promptUsdPerToken": "0.000000825",
-        "completionUsdPerToken": "0.000004125"
+        "promptUsdPerToken": "0",
+        "completionUsdPerToken": "0"
       },
-      "monthlyEstimateUsd": 2.81,
-      "monthlyCapUsd": 4.22
+      "monthlyEstimateUsd": 0,
+      "monthlyCapUsd": 0
     },
     {
-      "slot": "meta",
-      "openrouterId": "meta/muse-spark-1.3",
-      "canonicalSlug": "meta/muse-spark-1.3-20260902",
-      "displayName": "Muse Spark 1.3",
-      "shortCode": "MSP",
-      "color": "#2EC4C4",
-      "created": 1788378359,
-      "contextLength": 1048576,
-      "supportedParameters": [
-        "include_reasoning",
-        "max_tokens",
-        "reasoning",
-        "reasoning_effort",
-        "repetition_penalty",
-        "response_format",
-        "structured_outputs",
-        "temperature",
-        "tool_choice",
-        "tools",
-        "top_k",
-        "top_p"
-      ],
-      "pricing": {
-        "promptUsdPerToken": "0.00000125",
-        "completionUsdPerToken": "0.00000425"
-      },
-      "monthlyEstimateUsd": 3.5,
-      "monthlyCapUsd": 5.25
-    },
-    {
-      "slot": "deepseek",
-      "openrouterId": "deepseek/deepseek-v4.1-flash-1017",
-      "canonicalSlug": "deepseek/deepseek-v4.1-flash-20261017",
-      "displayName": "DeepSeek V4.1 Flash 1017",
-      "shortCode": "DSK",
-      "color": "#E6C88A",
-      "created": 1792225624,
+      "slot": "thinkingmachines",
+      "openrouterId": "thinkingmachines/inkling:free",
+      "canonicalSlug": "thinkingmachines/inkling-20260715",
+      "displayName": "Inkling (free)",
+      "shortCode": "INK",
+      "color": "#F58A4B",
+      "created": 1784325956,
       "contextLength": 1048576,
       "supportedParameters": [
         "frequency_penalty",
         "include_reasoning",
-        "logit_bias",
-        "logprobs",
-        "max_completion_tokens",
+        "max_tokens",
+        "presence_penalty",
+        "reasoning",
+        "reasoning_effort",
+        "seed",
+        "stop",
+        "temperature",
+        "tools",
+        "top_p"
+      ],
+      "pricing": {
+        "promptUsdPerToken": "0",
+        "completionUsdPerToken": "0"
+      },
+      "monthlyEstimateUsd": 0,
+      "monthlyCapUsd": 0
+    },
+    {
+      "slot": "xingchen",
+      "openrouterId": "xingchen-agi/xing4.0-29b-a4b:free",
+      "canonicalSlug": "xingchen-agi/xing4.0-29b-a4b-20261015",
+      "displayName": "Xing4.0 29B A4B (free)",
+      "shortCode": "XNG",
+      "color": "#FF7070",
+      "created": 1792177496,
+      "contextLength": 262144,
+      "supportedParameters": [
+        "frequency_penalty",
+        "include_reasoning",
         "max_tokens",
         "min_p",
-        "parallel_tool_calls",
         "presence_penalty",
         "reasoning",
-        "reasoning_effort",
         "repetition_penalty",
         "response_format",
         "seed",
@@ -161,53 +122,46 @@
         "tool_choice",
         "tools",
         "top_k",
-        "top_logprobs",
         "top_p"
       ],
       "pricing": {
-        "promptUsdPerToken": "0.00000015",
-        "completionUsdPerToken": "0.0000006"
+        "promptUsdPerToken": "0",
+        "completionUsdPerToken": "0"
       },
-      "monthlyEstimateUsd": 0.45,
-      "monthlyCapUsd": 0.68
-    }
-  ],
-  "alternatives": [
+      "monthlyEstimateUsd": 0,
+      "monthlyCapUsd": 0
+    },
     {
-      "slot": "meta",
-      "openrouterId": "meta-llama/llama-4-maverick",
-      "canonicalSlug": "meta-llama/llama-4-maverick-17b-128e-instruct",
-      "displayName": "Llama 4 Maverick",
-      "shortCode": "LMA",
-      "color": "#2EC4C4",
-      "created": 1743881822,
-      "contextLength": 524288,
+      "slot": "recursive",
+      "openrouterId": "recursive/flint-v1.0:free",
+      "canonicalSlug": "recursive/flint-v1.0-20261021",
+      "displayName": "Flint (free)",
+      "shortCode": "FLT",
+      "color": "#5C8DF5",
+      "created": 1792622765,
+      "contextLength": 262144,
       "supportedParameters": [
-        "frequency_penalty",
-        "logit_bias",
+        "include_reasoning",
         "logprobs",
         "max_tokens",
-        "presence_penalty",
-        "repetition_penalty",
+        "reasoning",
         "response_format",
         "seed",
         "stop",
-        "structured_outputs",
         "temperature",
-        "tool_choice",
         "tools",
-        "top_k",
         "top_logprobs",
         "top_p"
       ],
       "pricing": {
-        "promptUsdPerToken": "0.0000001875",
-        "completionUsdPerToken": "0.0000006525"
+        "promptUsdPerToken": "0",
+        "completionUsdPerToken": "0"
       },
-      "monthlyEstimateUsd": 0.53,
-      "monthlyCapUsd": 0.8
+      "monthlyEstimateUsd": 0,
+      "monthlyCapUsd": 0
     }
   ],
+  "alternatives": [],
   "benchmarks": {
     "index": {
       "displayName": "Nifty 50",
