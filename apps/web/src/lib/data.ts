@@ -28,6 +28,8 @@ export interface ArenaData {
   latestRound: read.RoundRow | null;
   latestDecisions: read.DecisionRow[];
   blunders: read.Blunder[];
+  /** Holdings of every trading participant, from the delayed public view. */
+  holdings: read.HoldingRow[];
   lastUpdated: Date | null;
   mode: 'shadow' | 'live';
 }
@@ -51,6 +53,7 @@ export async function loadArena(): Promise<Loaded<ArenaData>> {
         latestRound: null,
         latestDecisions: [],
         blunders: [],
+        holdings: [],
         lastUpdated: null,
         mode,
       };
@@ -62,7 +65,11 @@ export async function loadArena(): Promise<Loaded<ArenaData>> {
       read.getLatestDecisionRound(sql, season.id),
       read.getBlunders(sql, season.id, 10),
     ]);
-    const latestDecisions = latestRound ? await read.getRoundDecisions(sql, latestRound.id) : [];
+    const traders = participants.filter((p) => p.kind !== 'index').map((p) => p.id);
+    const [latestDecisions, holdings] = await Promise.all([
+      latestRound ? read.getRoundDecisions(sql, latestRound.id) : Promise.resolve([]),
+      traders.length ? read.getHoldings(sql, traders) : Promise.resolve([]),
+    ]);
     return {
       season,
       participants,
@@ -72,6 +79,7 @@ export async function loadArena(): Promise<Loaded<ArenaData>> {
       latestRound,
       latestDecisions,
       blunders,
+      holdings,
       lastUpdated: status?.lastRevealedAt ?? null,
       mode,
     };

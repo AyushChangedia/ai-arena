@@ -77,6 +77,18 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
 ## Not verified / known gaps
 
+- **Model panels on `/` (owner's request, 2026-10-25), recorded in SPEC §16.3.** A new section, "The models", sits directly under the score bug. Each AI model gets one panel with:
+  - its name and the ₹1,00,000 it started with;
+  - what it's worth now, and its profit or loss in green ▲ or red ▼;
+  - what it did in the latest round;
+  - its portfolio (holdings with unrealised profit or loss, then cash).
+
+  Data comes from the existing delayed views; `loadArena` now also reads `v_holdings`. Before the season starts, the panels show the line-up with all cash.
+
+  Also fixed: the header said "Round N of 12"; it now uses the configured schedule.
+
+  Verified with Playwright: 40 passed, 2 skipped by design. That covers 5 panels on a populated season, gains always ▲ + and losses ▼ −, the pre-season line-up, axe, and no horizontal scroll at 375 px.
+
 - **Free tier (owner's decision, 2026-10-25: "I don't want to spend anything").** SPEC §3, §3.1, §3.2 and §9.7 updated. Changes:
   - `config/arena.json`: 4 rounds a day (09:30, 11:00, 12:30, 14:00; `everyMinutes` 90, `lastSlot` 14:00; `roundsPerMonth` 84).
   - Roster tier `free` (`pnpm engine roster --tier free`, smoke.yml `tier` input). It picks each lab's newest `:free` model. A lab with no free model sits out (Anthropic). A free roster needs at least 3 models, and the schema rejects a priced model in it.

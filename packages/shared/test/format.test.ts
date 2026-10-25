@@ -4,6 +4,7 @@ import {
   formatInr,
   formatInrCompact,
   formatPct,
+  formatInrChange,
   formatPts,
   direction,
   formatTimeIst,
@@ -38,6 +39,10 @@ describe('formatters (SPEC §16.6)', () => {
     expect(formatInrCompact(150_00_00_000n * 100n)).toBe('₹150Cr');
   });
   it('formats percentages with arrows and true minus', () => {
+    expect(formatInrChange(421_200n)).toBe('▲ +₹4,212.00');
+    expect(formatInrChange(-210_000n)).toBe('▼ −₹2,100.00');
+    expect(formatInrChange(0n)).toBe('₹0.00');
+    expect(formatInrChange(-12_345_678n, { decimals: 0 })).toBe('▼ −₹1,23,457');
     expect(formatPct(0.0421)).toBe('▲ +4.21%');
     expect(formatPct(-0.0107)).toBe('▼ −1.07%');
     expect(formatPct(0)).toBe('0.00%');

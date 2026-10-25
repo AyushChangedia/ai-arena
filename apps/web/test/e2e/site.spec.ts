@@ -70,6 +70,33 @@ test.describe('populated shadow season', () => {
     await axe(page);
   });
 
+  test('model panels: start, worth now, profit or loss in colour, last round, portfolio', async ({
+    page,
+  }) => {
+    await page.goto(at(P.populated, '/'));
+    const section = page.getByRole('region', { name: 'The models' });
+    await expect(section).toBeVisible();
+    const cards = section.getByRole('article');
+    expect(await cards.count()).toBe(5); // the five test models; benchmarks stay in the standings
+    for (const card of await cards.all()) {
+      await expect(card.getByText('Started with')).toBeVisible();
+      await expect(card.getByText('₹1,00,000', { exact: true })).toBeVisible();
+      await expect(card.getByText(/^Last round, \d\d:\d\d IST$/)).toBeVisible();
+      await expect(card.getByRole('rowheader', { name: 'Cash' })).toBeVisible();
+    }
+    // Profit is green with ▲ and +, loss red with ▼ and −; colour is never the only cue.
+    const changes = section.locator('.text-gain, .text-loss');
+    expect(await changes.count()).toBeGreaterThan(0);
+    for (const el of await changes.all()) {
+      const [cls, text] = [(await el.getAttribute('class')) ?? '', await el.innerText()];
+      if (cls.includes('text-gain')) expect(text).toMatch(/^▲ \+/);
+      else expect(text).toMatch(/^▼ −/);
+    }
+    await expect(
+      section.getByRole('rowheader').filter({ hasNotText: 'Cash' }).first(),
+    ).toBeVisible();
+  });
+
   test('every page renders and is axe-clean', async ({ page }, info) => {
     await page.goto(at(P.populated, '/rounds'));
     const roundHref = await firstHref(page, '/rounds/');
@@ -192,6 +219,11 @@ test.describe('states', () => {
     ).toBeVisible();
     await expect(page.getByText(/Starts in/)).toBeVisible();
     await expect(page.locator('table')).toHaveCount(0);
+    // The line-up is shown before the first round: each model starts with ₹1,00,000 in cash.
+    const cards = page.getByRole('region', { name: 'The models' }).getByRole('article');
+    expect(await cards.count()).toBe(5);
+    await expect(cards.first().getByText('No trades yet')).toBeVisible();
+    await expect(cards.first().getByText('All cash:')).toBeVisible();
     await shot(page, 'pre-season', info.project.name);
     await axe(page);
   });
