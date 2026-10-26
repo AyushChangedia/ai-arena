@@ -77,6 +77,12 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
 ## Not verified / known gaps
 
+- **2026-10-26, day 1 of shadow season S0: no scheduled tick ran.** `tick.yml` was active but had zero runs ever, so the 09:30 round was missed.
+  - A manual `workflow_dispatch` tick at 10:07 IST ran fine and recorded the 09:30 slot as MISSED_SCHEDULE. The pre-market job (08:30–09:25) didn't run, so today's prompts have no daily-bar indicators.
+  - Fix: the cron is rewritten as an explicit minute list (`2,12,22,32,42,52 3-10 * * 1-5`), and the push of the workflow file also re-registers the schedule with GitHub.
+  - Backup for the day: manual dispatches at 11:02, 12:32, 14:02 and 15:45 IST.
+  - Not verified until a scheduled run appears.
+
 - **Model panels on `/` (owner's request, 2026-10-25), recorded in SPEC §16.3.** A new section, "The models", sits directly under the score bug. Each AI model gets one panel with:
   - its name and the ₹1,00,000 it started with;
   - what it's worth now, and its profit or loss in green ▲ or red ▼;
