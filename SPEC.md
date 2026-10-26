@@ -538,7 +538,7 @@ Ledger entry types: `SEASON_START` (starting cash), `BUY`, `SELL`, `DIVIDEND`, `
 
 ### 12.1 The tick
 
-`tick.yml` runs `pnpm engine tick` on cron `2-59/10 3-10 * * 1-5` (UTC), which is every 10 minutes from 08:32 to 16:22 IST. Minutes ending in 2 avoid the top-of-the-hour congestion on GitHub's scheduler. The workflow uses a concurrency group with `cancel-in-progress: false`, so runs never overlap.
+`tick.yml` runs `pnpm engine tick` on cron `2,12,22,32,42,52 3-10 * * 1-5` (UTC), which is every 10 minutes from 08:32 to 16:22 IST (written as a minute list since 2026-10-25; the step form `2-59/10` never fired). Minutes ending in 2 avoid the top-of-the-hour congestion on GitHub's scheduler. The workflow uses a concurrency group with `cancel-in-progress: false`, so runs never overlap.
 
 Each tick:
 
