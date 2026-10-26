@@ -19,7 +19,10 @@ export interface FakeCall {
 
 /** A fetch stand-in that answers from a queue of handlers and records every call. */
 export function fakeFetch(
-  handler: (call: FakeCall, n: number) => { status?: number; body: unknown } | Error,
+  handler: (
+    call: FakeCall,
+    n: number,
+  ) => { status?: number; body: unknown; headers?: Record<string, string> } | Error,
 ) {
   const calls: FakeCall[] = [];
   const impl = async (url: string, init?: RequestInit) => {
@@ -34,6 +37,7 @@ export function fakeFetch(
     if (r instanceof Error) throw r;
     return new Response(typeof r.body === 'string' ? r.body : JSON.stringify(r.body), {
       status: r.status ?? 200,
+      headers: r.headers,
     });
   };
   return { impl, calls };

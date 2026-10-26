@@ -63,6 +63,12 @@ export const arenaConfigSchema = z
         maxTokens: z.number().int().min(256),
         timeoutSeconds: z.number().int().min(5),
         retryDelaysSeconds: z.array(z.number().min(0)),
+        /** Waits before retrying an HTTP 429 (provider busy). Longer than retryDelaysSeconds; default: the same list. */
+        rateLimitRetryDelaysSeconds: z.array(z.number().min(0)).optional(),
+        /** Longest wait taken from a Retry-After header. */
+        maxRetryAfterSeconds: z.number().min(0).default(90),
+        /** Reasoning effort for the one repair call after a reply that ran out of tokens while thinking. */
+        repairReasoningEffort: z.enum(['minimal', 'low', 'medium', 'high']).optional(),
         creditWarnUsd: z.number().min(0),
         creditCriticalUsd: z.number().min(0),
         budgetCapMultiplier: z.number().min(1),

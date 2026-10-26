@@ -338,7 +338,7 @@ At roster time and in `pnpm doctor`, read each model's `supported_parameters` an
 
 ### 9.4 One repair attempt
 
-If the decision is invalid, send exactly one follow-up in the same conversation: "Your reply couldn't be read: <parser error>. Reply again with only the JSON object described in the rules." If that also fails, the decision is `INVALID_RESPONSE`: no trades, shown publicly as "Unreadable answer", and it counts against the model's clean-answer rate.
+If the decision is invalid, send exactly one follow-up in the same conversation: "Your reply couldn't be read: <parser error>. Reply again with only the JSON object described in the rules." If that also fails, the decision is `INVALID_RESPONSE`: no trades, shown publicly as "Unreadable answer", and it counts against the model's clean-answer rate. When the first reply stopped at the output-token limit (`finish_reason: "length"`), the parser error says so ("the reply ran out of room: it used all N output tokens (M on thinking)…") and the repair call uses `llm.repairReasoningEffort` (low) instead of the usual effort, so the model has room to answer (added 2026-10-26 after Flint's replies came back empty).
 
 ### 9.5 Errors
 
@@ -347,7 +347,8 @@ If the decision is invalid, send exactly one follow-up in the same conversation:
 | 401, 403 | `CONFIG_AUTH` | No retry. This model is `MISSED_CONFIG`. Critical alert. If every model gets it, the key is bad: pause the arena |
 | 402 | `CREDITS_EXHAUSTED` | No retry. Pause the arena (all models share the key). Critical alert. Public banner: "Rounds are paused: the arena is out of API credit." |
 | 404 or "model not found" | `MODEL_UNAVAILABLE` | No retry. `MISSED_CONFIG`. Critical alert. Admin decides: retire the model (§13) |
-| 408, 429, 5xx, network error, timeout | `TRANSIENT` | Up to 2 retries with exponential backoff and jitter (2 s, then 6 s), each attempt with a 120 s timeout. Then `MISSED_PROVIDER` |
+| 408, 5xx, network error, timeout | `TRANSIENT` | Up to 2 retries with exponential backoff and jitter (2 s, then 6 s), each attempt with a 120 s timeout. Then `MISSED_PROVIDER` |
+| 429 (provider busy) | `TRANSIENT` | Up to 2 retries after `llm.rateLimitRetryDelaysSeconds` (20 s, then 60 s), or longer if a `Retry-After` header asks, capped at `maxRetryAfterSeconds` (90 s). The daily free-model limit ("free-models-per-day") is never retried. Then `MISSED_PROVIDER` (added 2026-10-26: free models returned 429 within seconds) |
 | Empty content, refusal, unparseable | `BAD_OUTPUT` | One repair attempt (§9.4), then `INVALID_RESPONSE` |
 | Response `model` differs from configured | `MODEL_MISMATCH` | Record nothing as a decision; status `MODEL_MISMATCH`. Critical alert |
 

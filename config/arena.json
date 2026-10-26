@@ -46,9 +46,12 @@
   "llm": {
     "temperature": 0.3,
     "reasoningEffort": "medium",
-    "maxTokens": 4000,
+    "maxTokens": 8000,
     "timeoutSeconds": 120,
     "retryDelaysSeconds": [2, 6],
+    "rateLimitRetryDelaysSeconds": [20, 60],
+    "maxRetryAfterSeconds": 90,
+    "repairReasoningEffort": "low",
     "creditWarnUsd": 3,
     "creditCriticalUsd": 1,
     "budgetCapMultiplier": 1.5,
