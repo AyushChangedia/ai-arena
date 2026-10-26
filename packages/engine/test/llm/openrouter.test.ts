@@ -108,11 +108,12 @@ describe('error classification from recorded bodies (SPEC §9.5)', () => {
 describe('request (SPEC §9.1)', () => {
   it('sends the exact model, no fallback list, only supported parameters', () => {
     const b = buildChatRequest(entry, [{ role: 'system', content: 's' }], arena.llm);
+    expect(arena.llm.maxTokens).toBe(8000); // room to think and still answer (2026-10-26)
     expect(b).toMatchObject({
       model: 'openai/gpt-5.4-mini',
       provider: { require_parameters: true },
       usage: { include: true },
-      max_tokens: 4000,
+      max_tokens: arena.llm.maxTokens,
       temperature: 0.3,
       reasoning: { effort: 'medium' },
     });
@@ -170,11 +171,78 @@ describe('decideWithModel', () => {
     expect((await decide(c2)).costEstimated).toBe(true);
   });
   it('retries TRANSIENT errors twice with backoff, then MISSED_PROVIDER', async () => {
-    const { c, f, waits } = client(() => ({ status: 429, body: err(429).body }));
+    const { c, f, waits } = client(() => ({ status: 502, body: err(502).body }));
     const r = await decide(c);
     expect(r).toMatchObject({ status: 'MISSED_PROVIDER', errorClass: 'TRANSIENT', attempts: 3 });
     expect(f.calls).toHaveLength(3);
     expect(waits).toEqual([2000, 6000]);
+  });
+  it('waits longer before retrying a busy provider (HTTP 429)', async () => {
+    expect(arena.llm.rateLimitRetryDelaysSeconds).toEqual([20, 60]);
+    const { c, f, waits } = client(() => ({ status: 429, body: err(429).body }));
+    const r = await decide(c);
+    expect(r).toMatchObject({ status: 'MISSED_PROVIDER', errorClass: 'TRANSIENT', attempts: 3 });
+    expect(f.calls).toHaveLength(3);
+    expect(waits).toEqual([20000, 60000]);
+  });
+  it('honours Retry-After on a 429, up to the cap, and recovers', async () => {
+    const { c, waits } = client((_c, n) =>
+      n === 1
+        ? { status: 429, body: err(429).body, headers: { 'Retry-After': '45' } }
+        : n === 2
+          ? { status: 429, body: err(429).body, headers: { 'Retry-After': '600' } }
+          : { body: okBody(GOOD) },
+    );
+    expect(await decide(c)).toMatchObject({ status: 'OK', attempts: 3 });
+    expect(waits).toEqual([45000, 90000]); // max(20 s, 45 s); then 600 s capped at 90 s
+  });
+  it('never retries the daily free-model limit', async () => {
+    const daily = {
+      error: { code: 429, message: 'Rate limit exceeded: free-models-per-day. Add 10 credits.' },
+    };
+    const { c, f, waits } = client(() => ({ status: 429, body: daily }));
+    expect(await decide(c)).toMatchObject({ status: 'MISSED_PROVIDER', attempts: 1 });
+    expect(f.calls).toHaveLength(1);
+    expect(waits).toEqual([]);
+  });
+  it('explains a reply cut off at the token limit and repairs it with less thinking', async () => {
+    const cut = {
+      ...okBody(''),
+      choices: [{ finish_reason: 'length', message: { role: 'assistant', content: '' } }],
+      usage: {
+        prompt_tokens: 2500,
+        completion_tokens: 8000,
+        completion_tokens_details: { reasoning_tokens: 7990 },
+        cost: 0,
+      },
+    };
+    const { c, f } = client((_c, n) => (n === 1 ? { body: cut } : { body: okBody(GOOD) }));
+    const r = await decide(c);
+    expect(r).toMatchObject({ status: 'OK', attempts: 2 });
+    expect((f.calls[0]!.body as { reasoning: unknown }).reasoning).toEqual({ effort: 'medium' });
+    expect((f.calls[1]!.body as { reasoning: unknown }).reasoning).toEqual({ effort: 'low' });
+    const repairMsg = (f.calls[1]!.body as { messages: { content: string }[] }).messages.at(-1)!;
+    expect(repairMsg.content).toMatch(
+      /ran out of room: it used all 8000 output tokens \(7990 on thinking\)/,
+    );
+  });
+  it('reports both cut-off replies when the repair runs out of room too', async () => {
+    const cut = {
+      ...okBody(''),
+      choices: [{ finish_reason: 'length', message: { role: 'assistant', content: null } }],
+      usage: { prompt_tokens: 10, completion_tokens: 8000, cost: 0 },
+    };
+    const { c } = client(() => ({ body: cut }));
+    const r = await decide(c);
+    expect(r.status).toBe('INVALID_RESPONSE');
+    expect(r.errorDetail).toMatch(
+      /^unreadable twice: the reply ran out of room: it used all 8000 output tokens before finishing/,
+    );
+  });
+  it('keeps the plain "empty" reason when a reply simply stopped', async () => {
+    const { c } = client(() => ({ body: okBody('') }));
+    const r = await decide(c);
+    expect(r.errorDetail).toBe('unreadable twice: the reply was empty; then the reply was empty');
   });
   it('recovers when a retry succeeds', async () => {
     const { c } = client((_c, n) =>

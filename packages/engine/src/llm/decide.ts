@@ -133,6 +133,10 @@ export async function decideWithModel(a: DecideArgs): Promise<DecisionRecord> {
         a.llm.timeoutSeconds * 1000,
         a.llm.retryDelaysSeconds,
         a.signal,
+        {
+          delaysSeconds: a.llm.rateLimitRetryDelaysSeconds,
+          maxRetryAfterSeconds: a.llm.maxRetryAfterSeconds,
+        },
       );
       attempts += r.attempts;
       latency += r.attempt.latencyMs;
@@ -169,9 +173,10 @@ export async function decideWithModel(a: DecideArgs): Promise<DecisionRecord> {
   }
   const msg = first.attempt.response.choices[0]!.message;
   const content = msg.content ?? null;
+  const ranOut1 = ranOutOfTokens(first.attempt);
   const p1 = msg.refusal
     ? ({ ok: false, error: `the model refused: ${msg.refusal.slice(0, 200)}` } as const)
-    : parseDecisionContent(content, { noteMaxChars: a.noteMaxChars });
+    : explainCutOff(parseDecisionContent(content, { noteMaxChars: a.noteMaxChars }), ranOut1);
   if (p1.ok) {
     return rec({
       status: 'OK',
@@ -183,8 +188,14 @@ export async function decideWithModel(a: DecideArgs): Promise<DecisionRecord> {
   }
 
   // One repair attempt in the same conversation (SPEC §9.4).
+  // A reply cut off while thinking gets its repair with less thinking, so it has room to answer.
+  const lessThinking =
+    ranOut1 && a.llm.repairReasoningEffort && 'reasoning' in body
+      ? { reasoning: { effort: a.llm.repairReasoningEffort } }
+      : {};
   const repairBody = {
     ...body,
+    ...lessThinking,
     messages: [
       ...messages,
       { role: 'assistant', content: content ?? '' },
@@ -216,7 +227,10 @@ export async function decideWithModel(a: DecideArgs): Promise<DecisionRecord> {
     });
   }
   const content2 = second.attempt.response.choices[0]!.message.content ?? null;
-  const p2 = parseDecisionContent(content2, { noteMaxChars: a.noteMaxChars });
+  const p2 = explainCutOff(
+    parseDecisionContent(content2, { noteMaxChars: a.noteMaxChars }),
+    ranOutOfTokens(second.attempt),
+  );
   if (p2.ok) {
     return rec({
       status: 'OK',
@@ -234,4 +248,32 @@ export async function decideWithModel(a: DecideArgs): Promise<DecisionRecord> {
     parsed: { content: content2, method: null, error: p2.error, repaired: true },
     servingModel: serving,
   });
+}
+
+/** The reply stopped at the output-token limit (finish_reason "length"), with its token counts. */
+function ranOutOfTokens(
+  a: ChatAttempt,
+): { output: number | null; reasoning: number | null } | null {
+  if (a.response.choices[0]?.finish_reason !== 'length') return null;
+  const u = a.response.usage;
+  return {
+    output: u?.completion_tokens ?? null,
+    reasoning: u?.completion_tokens_details?.reasoning_tokens ?? null,
+  };
+}
+
+/** Replaces a bare "empty" or "unreadable" with why: the model ran out of output tokens. */
+function explainCutOff(
+  p: ReturnType<typeof parseDecisionContent>,
+  ranOut: { output: number | null; reasoning: number | null } | null,
+): ReturnType<typeof parseDecisionContent> {
+  if (p.ok || !ranOut) return p;
+  const used =
+    ranOut.output === null
+      ? 'all its output tokens'
+      : `all ${ranOut.output} output tokens${ranOut.reasoning ? ` (${ranOut.reasoning} on thinking)` : ''}`;
+  return {
+    ok: false,
+    error: `the reply ran out of room: it used ${used} before finishing (${p.error})`,
+  };
 }

@@ -90,10 +90,26 @@ export class LlmError extends Error {
     message: string,
     readonly status: number | null,
     readonly body: string | null,
+    /** Seconds from a Retry-After header, when the response sent one. */
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(message);
     this.name = 'LlmError';
   }
+}
+
+/** OpenRouter's daily cap on free-model requests: retrying can't help until the next day. */
+export function isDailyLimit(e: LlmError): boolean {
+  return e.status === 429 && /per[- ]?day|daily/i.test(`${e.message} ${e.body ?? ''}`);
+}
+
+function retryAfterOf(headers: Headers | undefined): number | null {
+  const v = headers?.get('retry-after');
+  if (!v) return null;
+  const n = Number(v);
+  if (Number.isFinite(n) && n >= 0) return n;
+  const at = Date.parse(v);
+  return Number.isNaN(at) ? null : Math.max(0, Math.round((at - Date.now()) / 1000));
 }
 
 /** Maps an HTTP status and error body to a SPEC §9.5 class. */
@@ -249,6 +265,7 @@ export class OpenRouterClient {
         `OpenRouter HTTP ${res.status}: ${errorMessageOf(res.text)}`,
         res.status,
         res.text,
+        retryAfterOf(res.headers),
       );
     throw new LlmError(
       'BAD_OUTPUT',
@@ -258,12 +275,17 @@ export class OpenRouterClient {
     );
   }
 
-  /** TRANSIENT failures: up to len(delays) retries with exponential backoff and jitter (SPEC §9.5). */
+  /**
+   * TRANSIENT failures: up to len(delays) retries with backoff and jitter (SPEC §9.5). An HTTP 429
+   * (provider busy) uses the longer rate-limit delays and honours Retry-After up to a cap; the
+   * daily free-model limit is never retried.
+   */
   async chatWithRetry(
     body: unknown,
     timeoutMs: number,
     delaysSeconds: number[],
     signal?: AbortSignal,
+    rateLimit: { delaysSeconds?: number[]; maxRetryAfterSeconds?: number } = {},
   ): Promise<{ attempt: ChatAttempt; attempts: number }> {
     const wait = this.opts.wait ?? sleep;
     // Jitter only; never affects trading decisions. Uses crypto, since the guard reserves the global PRNG for nobody.
@@ -276,16 +298,22 @@ export class OpenRouterClient {
       try {
         return { attempt: await this.chatOnce(body, timeoutMs, signal), attempts };
       } catch (e) {
+        const busy = e instanceof LlmError && e.status === 429;
+        const delays = busy ? (rateLimit.delaysSeconds ?? delaysSeconds) : delaysSeconds;
         const retryable =
           e instanceof LlmError &&
           e.errorClass === 'TRANSIENT' &&
-          attempts <= delaysSeconds.length &&
+          !(busy && isDailyLimit(e)) &&
+          attempts <= delays.length &&
           !signal?.aborted;
         if (!retryable) {
           if (e instanceof LlmError) (e as LlmError & { attempts?: number }).attempts = attempts;
           throw e;
         }
-        const base = delaysSeconds[attempts - 1]! * 1000;
+        let base = delays[attempts - 1]! * 1000;
+        const after = (e as LlmError).retryAfterSeconds;
+        if (busy && after !== null)
+          base = Math.max(base, Math.min(after, rateLimit.maxRetryAfterSeconds ?? 90) * 1000);
         await wait(base + Math.floor(random() * base * 0.25));
       }
     }

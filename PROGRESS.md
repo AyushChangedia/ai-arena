@@ -77,6 +77,21 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
 ## Not verified / known gaps
 
+- **2026-10-26: busy free models and empty replies.** In the 11:00 and 12:30 rounds:
+  - Gemma and Xing got HTTP 429 ("provider returned error") on every attempt; the retries came only 2 s and 6 s later.
+  - Flint returned empty content twice per round, at about 31 s per attempt, which matches running into the 4,000-token output cap while thinking. The engine didn't record `finish_reason`, so this wasn't certain.
+
+  Fixes:
+  - A 429 now retries after 20 s and 60 s, honouring `Retry-After` up to 90 s. The daily free-model limit is never retried.
+  - `llm.maxTokens` is raised from 4,000 to 8,000 (the models are free).
+  - A reply cut off at the limit now reports that, with its token counts.
+  - The repair call after a cut-off reply uses low reasoning effort.
+  - SPEC §9.4 and §9.5 are updated.
+
+  Verified by unit tests: 429 waits, Retry-After and its cap, no retry on the daily limit, the cut-off reason, and the low-effort repair.
+
+  Not verified against the live models until the next round or a `decide-all` run. Raising `max_tokens` could hit a provider's output limit; if a model then starts failing with HTTP 400 or 404, lower it.
+
 - **2026-10-26, day 1 of shadow season S0: no scheduled tick ran.** `tick.yml` was active but had zero runs ever, so the 09:30 round was missed.
   - A manual `workflow_dispatch` tick at 10:07 IST ran fine and recorded the 09:30 slot as MISSED_SCHEDULE. The pre-market job (08:30–09:25) didn't run, so today's prompts have no daily-bar indicators.
   - Fix: the cron is rewritten as an explicit minute list (`2,12,22,32,42,52 3-10 * * 1-5`), and the push of the workflow file also re-registers the schedule with GitHub.
