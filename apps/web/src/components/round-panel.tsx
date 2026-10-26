@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { DecisionRow, Participant, RoundRow } from '@arena/db/read';
-import { formatInr } from '@arena/shared/format';
+import { formatInr, tradeVerb } from '@arena/shared/format';
 import { arena } from '@/lib/config';
 import { verdict, firstLine } from '@/lib/view';
 import { roundNumber } from '@/lib/schedule';
@@ -61,6 +61,12 @@ export function RoundPanel({
                 </summary>
                 {d ? (
                   <div className="mt-2 space-y-2 pl-1 text-sm">
+                    {d.strategy ? (
+                      <p className="model-text prose-measure">
+                        <span className="font-semibold not-italic text-text">Strategy: </span>
+                        {d.strategy.slice(0, arena.display.strategyDisplayChars)}
+                      </p>
+                    ) : null}
                     {d.reasoning ? (
                       <p className="model-text prose-measure">
                         {d.reasoning.slice(0, arena.display.reasoningDisplayChars)}
@@ -72,7 +78,12 @@ export function RoundPanel({
                           <li key={a.id} className="num">
                             {a.status === 'executed' ? (
                               <>
-                                {a.side === 'BUY' ? 'Bought' : 'Sold'} {a.quantity} {a.symbol} at{' '}
+                                {tradeVerb(
+                                  a.side === 'BUY' ? 'BUY' : 'SELL',
+                                  a.quantity ?? 0,
+                                  a.positionAfter,
+                                )}{' '}
+                                {a.quantity} {a.symbol} at{' '}
                                 {a.pricePaise === null ? '—' : formatInr(a.pricePaise)} (
                                 {a.priceSource === 'ask'
                                   ? 'best ask'
@@ -95,6 +106,16 @@ export function RoundPanel({
                             ) : (
                               <>Rejected: {a.rejectDetail ?? a.rejectCode}</>
                             )}
+                            {a.why ? (
+                              <span className="model-text block font-sans text-text-2">
+                                Why: “{a.why.slice(0, arena.display.whyDisplayChars)}”
+                              </span>
+                            ) : null}
+                            {a.exitPlan ? (
+                              <span className="model-text block font-sans text-text-2">
+                                Exit plan: {a.exitPlan.slice(0, arena.display.exitPlanDisplayChars)}
+                              </span>
+                            ) : null}
                           </li>
                         ))}
                       </ul>

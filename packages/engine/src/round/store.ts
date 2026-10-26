@@ -78,7 +78,7 @@ export async function loadPortfolio(
   );
   if (!c.rows[0]) return null;
   const p = await db.query<{ symbol: string; quantity: number; avg_cost_paise: string }>(
-    'SELECT symbol, quantity, avg_cost_paise FROM positions WHERE participant_id = $1 AND quantity > 0',
+    'SELECT symbol, quantity, avg_cost_paise FROM positions WHERE participant_id = $1 AND quantity <> 0',
     [participantId],
   );
   return {
@@ -106,10 +106,10 @@ export async function soldToday(
   return new Set(r.rows.map((x) => x.symbol));
 }
 
-/** Symbols held by anyone in the season (so held stocks that left the index still get quotes). */
+/** Symbols with an open position (long or short) in the season, so they always get quotes. */
 export async function heldSymbols(db: Queryable, seasonId: string): Promise<string[]> {
   const r = await db.query<{ symbol: string }>(
-    'SELECT DISTINCT p.symbol FROM positions p JOIN participants pa ON pa.id = p.participant_id WHERE pa.season_id = $1 AND p.quantity > 0',
+    'SELECT DISTINCT p.symbol FROM positions p JOIN participants pa ON pa.id = p.participant_id WHERE pa.season_id = $1 AND p.quantity <> 0',
     [seasonId],
   );
   return r.rows.map((x) => x.symbol).sort();

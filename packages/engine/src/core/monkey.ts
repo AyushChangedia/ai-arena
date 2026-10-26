@@ -29,29 +29,60 @@ export interface MonkeyInput {
   tradeable: Map<string, bigint>;
   /** Decision-snapshot LTP for valuation of every held symbol. */
   ltp: (symbol: string) => bigint | null;
+  /** Intraday product: a new position is long or short on a coin flip. */
+  allowShort?: boolean;
 }
 
 export interface MonkeyDecision {
   seedHex: string;
+  strategy: string;
   reasoning: string;
-  actions: { side: 'BUY' | 'SELL'; symbol: string; quantity: number; why: string }[];
+  actions: {
+    side: 'BUY' | 'SELL';
+    symbol: string;
+    quantity: number;
+    why: string;
+    exit_plan: string;
+  }[];
 }
 
 export async function monkeyDecide(input: MonkeyInput): Promise<MonkeyDecision> {
   const { seedHex, seed } = await monkeySeed(input.roundId);
   const rng = mulberry32(seed);
-  const none = (why: string): MonkeyDecision => ({ seedHex, reasoning: why, actions: [] });
+  const strategy = input.allowShort
+    ? 'No strategy: coin flips decide everything. Half the time it does nothing; otherwise it closes part of a random position or opens a random long or short worth 5–20% of the portfolio.'
+    : 'No strategy: coin flips decide everything. Half the time it does nothing; otherwise it sells part of a random holding or buys a random stock worth 5–20% of the portfolio.';
+  const none = (why: string): MonkeyDecision => ({
+    seedHex,
+    strategy,
+    reasoning: why,
+    actions: [],
+  });
   if (rng() < 0.5) return none('Coin flip: do nothing this round.');
   const holdings = [...input.portfolio.positions.entries()]
-    .filter(([, p]) => p.quantity > 0)
+    .filter(([, p]) => (input.allowShort ? p.quantity !== 0 : p.quantity > 0))
     .sort(([a], [b]) => a.localeCompare(b));
   if (holdings.length > 0 && rng() < 0.5) {
     const [symbol, pos] = holdings[Math.floor(rng() * holdings.length)]!;
-    const quantity = 1 + Math.floor(rng() * pos.quantity);
+    const quantity = 1 + Math.floor(rng() * Math.abs(pos.quantity));
+    if (pos.quantity < 0)
+      return {
+        seedHex,
+        strategy,
+        reasoning: 'Coin flip: buy back part of a random short.',
+        actions: [
+          { side: 'BUY', symbol, quantity, why: 'Random cover.', exit_plan: 'None: random.' },
+        ],
+      };
     return {
       seedHex,
-      reasoning: 'Coin flip: sell a random holding.',
-      actions: [{ side: 'SELL', symbol, quantity, why: 'Random sell.' }],
+      strategy,
+      reasoning: input.allowShort
+        ? 'Coin flip: sell part of a random long.'
+        : 'Coin flip: sell a random holding.',
+      actions: [
+        { side: 'SELL', symbol, quantity, why: 'Random sell.', exit_plan: 'None: random.' },
+      ],
     };
   }
   const symbols = [...input.tradeable.keys()].sort();
@@ -63,15 +94,27 @@ export async function monkeyDecide(input: MonkeyInput): Promise<MonkeyDecision> 
     const px = input.ltp(s);
     if (px !== null) total += BigInt(p.quantity) * px;
   }
+  // The side is drawn last, and only when shorting is allowed, so long-only rounds replay unchanged.
+  const short = input.allowShort ? rng() < 0.5 : false;
+  const verb = short ? 'short' : 'buy';
   const ltp = input.tradeable.get(symbol)!;
   const quantity = Number((total * BigInt(bp)) / 10_000n / ltp);
   if (quantity < 1)
     return none(
-      `Coin flip: buy ${symbol}, but ${(bp / 100).toFixed(2)}% of the portfolio is less than one share.`,
+      `Coin flip: ${verb} ${symbol}, but ${(bp / 100).toFixed(2)}% of the portfolio is less than one share.`,
     );
   return {
     seedHex,
-    reasoning: `Coin flip: buy ${symbol} worth about ${(bp / 100).toFixed(2)}% of the portfolio.`,
-    actions: [{ side: 'BUY', symbol, quantity, why: 'Random buy.' }],
+    strategy,
+    reasoning: `Coin flip: ${verb} ${symbol} worth about ${(bp / 100).toFixed(2)}% of the portfolio.`,
+    actions: [
+      {
+        side: short ? 'SELL' : 'BUY',
+        symbol,
+        quantity,
+        why: short ? 'Random short.' : 'Random buy.',
+        exit_plan: 'None: random.',
+      },
+    ],
   };
 }

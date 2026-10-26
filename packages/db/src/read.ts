@@ -168,10 +168,12 @@ export interface RoundRow {
   statusReason: string | null;
   decisionSnapshotAt: Date | null;
   fillSnapshotAt: Date | null;
+  /** 'trading', or 'square_off' (intraday: the engine closed every open position). */
+  kind: 'trading' | 'square_off';
 }
 
 const roundSql = `SELECT id, season_id, to_char(trading_date,'YYYY-MM-DD') AS trading_date, to_char(slot_time,'HH24:MI') AS slot_time, scheduled_at, started_at,
-  finished_at, reveal_at, status, status_reason, decision_snapshot_at, fill_snapshot_at FROM v_rounds`;
+  finished_at, reveal_at, status, status_reason, decision_snapshot_at, fill_snapshot_at, kind FROM v_rounds`;
 function toRound(x: Record<string, unknown>): RoundRow {
   return {
     id: x.id as string,
@@ -186,6 +188,7 @@ function toRound(x: Record<string, unknown>): RoundRow {
     statusReason: (x.status_reason as string) ?? null,
     decisionSnapshotAt: dateOrNull(x.decision_snapshot_at),
     fillSnapshotAt: dateOrNull(x.fill_snapshot_at),
+    kind: x.kind === 'square_off' ? 'square_off' : 'trading',
   };
 }
 
@@ -203,10 +206,10 @@ export async function getRound(sql: Sql, id: string): Promise<RoundRow | null> {
   return r[0] ? toRound(r[0]) : null;
 }
 
-/** The latest revealed round that held decisions (completed or partial). */
+/** The latest revealed trading round that held decisions (completed or partial); square-offs aside. */
 export async function getLatestDecisionRound(sql: Sql, seasonId: string): Promise<RoundRow | null> {
   const r = await sql.query(
-    `${roundSql} WHERE season_id = $1 AND status IN ('COMPLETED','PARTIAL','ABORTED') ORDER BY trading_date DESC, slot_time DESC LIMIT 1`,
+    `${roundSql} WHERE season_id = $1 AND kind = 'trading' AND status IN ('COMPLETED','PARTIAL','ABORTED') ORDER BY trading_date DESC, slot_time DESC LIMIT 1`,
     [seasonId],
   );
   return r[0] ? toRound(r[0]) : null;
@@ -222,6 +225,8 @@ export interface ActionRow {
   symbolRaw: string | null;
   quantityRaw: unknown;
   why: string | null;
+  /** The model's stated exit (target, stop or time); published, never acted on. */
+  exitPlan: string | null;
   side: string | null;
   symbol: string | null;
   quantity: number | null;
@@ -233,6 +238,8 @@ export interface ActionRow {
   pricePaise: bigint | null;
   priceSource: string | null;
   chargesTotalPaise: bigint | null;
+  /** Position after the fill (negative = short), for plain words like "Shorted". */
+  positionAfter: number | null;
 }
 
 function toAction(x: Record<string, unknown>): ActionRow {
@@ -246,6 +253,7 @@ function toAction(x: Record<string, unknown>): ActionRow {
     symbolRaw: (x.symbol_raw as string) ?? null,
     quantityRaw: x.quantity_raw ?? null,
     why: (x.why as string) ?? null,
+    exitPlan: (x.exit_plan as string) ?? null,
     side: (x.side as string) ?? null,
     symbol: (x.symbol as string) ?? null,
     quantity: num(x.quantity),
@@ -257,10 +265,11 @@ function toAction(x: Record<string, unknown>): ActionRow {
     pricePaise: bigOrNull(x.price_paise),
     priceSource: (x.price_source as string) ?? null,
     chargesTotalPaise: bigOrNull(x.charges_total_paise),
+    positionAfter: num(x.position_after),
   };
 }
-const actionSql = `SELECT id, decision_id, round_id, participant_id, position, side_raw, symbol_raw, quantity_raw, why, side, symbol, quantity, status, reject_code,
-  reject_detail, model_fault, ledger_seq::text, price_paise::text, price_source, charges_total_paise::text FROM v_actions`;
+const actionSql = `SELECT id, decision_id, round_id, participant_id, position, side_raw, symbol_raw, quantity_raw, why, exit_plan, side, symbol, quantity, status, reject_code,
+  reject_detail, model_fault, ledger_seq::text, price_paise::text, price_source, charges_total_paise::text, position_after FROM v_actions`;
 
 export interface DecisionRow {
   id: string;
@@ -271,6 +280,8 @@ export interface DecisionRow {
   privateBlock: string;
   promptSha256: string;
   answerText: string | null;
+  /** The model's stated approach this round (null if it gave none, or for engine decisions). */
+  strategy: string | null;
   reasoning: string | null;
   noteToSelf: string | null;
   flags: string[];
@@ -286,7 +297,7 @@ export interface DecisionRow {
   actions: ActionRow[];
 }
 
-const decisionSql = `SELECT id, round_id, participant_id, status, error_class, private_block, prompt_sha256, answer_text, reasoning, note_to_self, flags,
+const decisionSql = `SELECT id, round_id, participant_id, status, error_class, private_block, prompt_sha256, answer_text, strategy, reasoning, note_to_self, flags,
   serving_model, attempts, latency_ms, input_tokens, output_tokens, reasoning_tokens, cost_usd::text, cost_estimated, rng_seed FROM v_decisions`;
 async function withActions(sql: Sql, rows: Record<string, unknown>[]): Promise<DecisionRow[]> {
   if (!rows.length) return [];
@@ -303,6 +314,7 @@ async function withActions(sql: Sql, rows: Record<string, unknown>[]): Promise<D
     privateBlock: (x.private_block as string) ?? '',
     promptSha256: (x.prompt_sha256 as string) ?? '',
     answerText: (x.answer_text as string) ?? null,
+    strategy: (x.strategy as string) || null,
     reasoning: (x.reasoning as string) ?? null,
     noteToSelf: (x.note_to_self as string) ?? null,
     flags: (x.flags as string[]) ?? [],
@@ -611,7 +623,7 @@ export async function getRecentStatuses(
   }[]
 > {
   const rounds = await sql.query(
-    `SELECT id, to_char(trading_date,'YYYY-MM-DD') AS trading_date, to_char(slot_time,'HH24:MI') AS slot_time, status FROM v_rounds WHERE season_id = $1
+    `SELECT id, to_char(trading_date,'YYYY-MM-DD') AS trading_date, to_char(slot_time,'HH24:MI') AS slot_time, status FROM v_rounds WHERE season_id = $1 AND kind = 'trading'
      ORDER BY trading_date DESC, slot_time DESC LIMIT $2`,
     [seasonId, n],
   );
@@ -652,8 +664,8 @@ export async function getParticipantCounts(
     `SELECT p.id AS participant_id,
        count(*) FILTER (WHERE d.status = 'OK') AS ok,
        count(*) FILTER (WHERE d.status = 'INVALID_RESPONSE') AS invalid,
-       (SELECT count(*) FROM v_rounds r WHERE r.season_id = p.season_id AND r.status IN ('COMPLETED','PARTIAL','ABORTED')) AS rounds_held,
-       (SELECT count(*) FROM v_actions a WHERE a.participant_id = p.id AND a.status = 'executed') AS executed,
+       (SELECT count(*) FROM v_rounds r WHERE r.season_id = p.season_id AND r.kind = 'trading' AND r.status IN ('COMPLETED','PARTIAL','ABORTED')) AS rounds_held,
+       (SELECT count(*) FROM v_actions a JOIN v_decisions ad ON ad.id = a.decision_id WHERE a.participant_id = p.id AND a.status = 'executed' AND ad.status <> 'SQUARE_OFF') AS executed,
        (SELECT count(*) FROM v_actions a WHERE a.participant_id = p.id AND a.model_fault) AS fault,
        coalesce(sum(d.cost_usd), 0)::text AS cost, avg(d.latency_ms) AS latency,
        coalesce(sum(d.input_tokens), 0) AS input_tokens, coalesce(sum(d.output_tokens), 0) AS output_tokens
@@ -673,6 +685,38 @@ export async function getParticipantCounts(
     inputTokens: Number(x.input_tokens),
     outputTokens: Number(x.output_tokens),
   }));
+}
+
+export interface TradeNote {
+  /** The model's reason for the trade, or the engine's for a square-off. */
+  why: string | null;
+  exitPlan: string | null;
+  /** The decision's status: 'SQUARE_OFF' marks the engine's closing orders. */
+  decisionStatus: string;
+  strategy: string | null;
+}
+
+/** The why, exit plan and strategy behind each revealed fill, keyed by ledger action id. */
+export async function getTradeNotes(
+  sql: Sql,
+  participantId: string,
+): Promise<Map<string, TradeNote>> {
+  const r = await sql.query(
+    `SELECT a.id, a.why, a.exit_plan, d.status, d.strategy FROM v_actions a JOIN v_decisions d ON d.id = a.decision_id
+     WHERE a.participant_id = $1 AND a.status = 'executed'`,
+    [participantId],
+  );
+  return new Map(
+    r.map((x) => [
+      x.id as string,
+      {
+        why: (x.why as string) || null,
+        exitPlan: (x.exit_plan as string) || null,
+        decisionStatus: x.status as string,
+        strategy: (x.strategy as string) || null,
+      },
+    ]),
+  );
 }
 
 export async function getTradesForSeason(sql: Sql, seasonId: string): Promise<LedgerRow[]> {

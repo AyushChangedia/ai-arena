@@ -76,6 +76,25 @@ export function cleanModelName(name: string): string {
     .trim();
 }
 
+/**
+ * Plain words for a fill under net positions (intraday long-short): Bought, Sold, Shorted, Bought back,
+ * or both halves when a trade crosses zero. Long-only fills read Bought or Sold.
+ */
+export function tradeVerb(
+  side: 'BUY' | 'SELL',
+  quantity: number,
+  positionAfter: number | null,
+): string {
+  if (positionAfter === null) return side === 'BUY' ? 'Bought' : 'Sold';
+  const before = side === 'BUY' ? positionAfter - quantity : positionAfter + quantity;
+  if (side === 'SELL') {
+    if (before <= 0) return 'Shorted';
+    return positionAfter < 0 ? 'Sold, then shorted' : 'Sold';
+  }
+  if (before >= 0) return 'Bought';
+  return positionAfter > 0 ? 'Bought back, then bought' : 'Bought back';
+}
+
 /** A change in rupees, signed, with ▲/▼ so colour is never the only cue: ▲ +₹4,212.00, ▼ −₹2,100.00. */
 export function formatInrChange(paise: bigint, opts: { decimals?: 0 | 2 } = {}): string {
   if (paise === 0n) return formatInr(0n, opts);

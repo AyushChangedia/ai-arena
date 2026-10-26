@@ -19,11 +19,17 @@ const read = (p: string) =>
 
 describe('config schemas', () => {
   it('accepts the committed arena, fees and roster rules', () => {
-    expect(arenaConfigSchema.parse(read('arena.json')).limits.maxActionsPerRound).toBe(5);
-    expect(feesConfigSchema.parse(read('fees.json')).charges.stt.rate).toEqual({
-      num: 1,
-      den: 1000,
-    });
+    const arena = arenaConfigSchema.parse(read('arena.json'));
+    expect(arena.limits.maxActionsPerRound).toBe(5);
+    // Intraday long-short since 2026-10-26 (the owner's choice): square-off 15:00–15:15, no leverage.
+    expect(arena.product).toBe('intraday_long_short');
+    expect(arena.intraday).toEqual({ squareOffFrom: '15:00', squareOffDeadline: '15:15' });
+    expect(arena.limits.maxGrossExposurePct).toBe(100);
+    const fees = feesConfigSchema.parse(read('fees.json'));
+    // Intraday STT: 0.025% on the sell side only. Brokerage: ₹20 per order.
+    expect(fees.charges.stt).toMatchObject({ rate: { num: 1, den: 4000 }, appliesTo: 'sell' });
+    expect(fees.charges.brokerage.flatPaisePerOrder).toBe('2000');
+    expect(fees.dpCharge).toBeNull();
     // The five paid-tier labs first, then the labs that take part only with free models.
     expect(Object.keys(rosterRulesSchema.parse(read('roster-rules.json')).slots)).toEqual([
       'openai',
@@ -35,6 +41,25 @@ describe('config schemas', () => {
       'xingchen',
       'recursive',
     ]);
+  });
+  it('checks the intraday square-off against the schedule', () => {
+    const a = read('arena.json');
+    const parse = (x: unknown) => arenaConfigSchema.safeParse(x);
+    expect(parse({ ...a, intraday: undefined }).success).toBe(false); // intraday needs the block
+    expect(parse({ ...a, product: 'long_only_delivery' }).success).toBe(false); // and only it
+    const { intraday: _drop, ...delivery } = a;
+    expect(parse({ ...delivery, product: 'long_only_delivery' }).success).toBe(true);
+    // The last round plus its grace window (14:00 + 20 min) must end before the square-off.
+    expect(parse({ ...a, intraday: { ...a.intraday, squareOffFrom: '14:15' } }).success).toBe(
+      false,
+    );
+    expect(parse({ ...a, intraday: { ...a.intraday, squareOffDeadline: '14:55' } }).success).toBe(
+      false,
+    );
+    expect(parse({ ...a, intraday: { ...a.intraday, squareOffDeadline: '15:45' } }).success).toBe(
+      false,
+    );
+    expect(parse({ ...a, schedule: { ...a.schedule, lastSlot: '15:00' } }).success).toBe(false);
   });
   it('rejects unknown keys and bad values in arena.json', () => {
     const a = read('arena.json');
@@ -155,6 +180,7 @@ describe('errors and codes', () => {
     for (const s of DECISION_STATUSES) expect(STATUS_PUBLIC_TEXT[s]).toBeTruthy();
     expect(REJECTION_CODES.PRICE_UNAVAILABLE.modelFault).toBe(false);
     expect(REJECTION_CODES.SYMBOL_SUSPENDED.modelFault).toBe(false);
-    expect(Object.values(REJECTION_CODES).filter((c) => c.modelFault)).toHaveLength(11);
+    expect(REJECTION_CODES.EXPOSURE_LIMIT.modelFault).toBe(true);
+    expect(Object.values(REJECTION_CODES).filter((c) => c.modelFault)).toHaveLength(12);
   });
 });

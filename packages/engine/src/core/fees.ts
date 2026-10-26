@@ -1,7 +1,8 @@
 /**
- * Equity-delivery charges (SPEC §11.5), computed in BigInt paise from config/fees.json fractions.
- * Each charge is rounded half-up to the nearest paisa per order. GST is 18% of the unrounded sum
- * of its base charges, then rounded. The DP charge is a flat amount on the first SELL of a symbol per day.
+ * Equity charges (SPEC §11.5), computed in BigInt paise from config/fees.json: a rate (exact fraction)
+ * plus an optional flat amount per order (brokerage). Each charge is rounded half-up to the nearest
+ * paisa per order. GST is 18% of the unrounded sum of its base charges, then rounded. The DP charge
+ * (delivery only) is a flat amount on the first SELL of a symbol per day.
  */
 import type { FeesConfig, ChargeName } from '@arena/shared/schemas';
 import { divRoundHalfUp } from '@arena/shared/money';
@@ -32,6 +33,9 @@ function applies(appliesTo: 'buy' | 'sell' | 'both', side: Side): boolean {
 
 const gcd = (a: bigint, b: bigint): bigint => (b === 0n ? a : gcd(b, a % b));
 
+const flatOf = (c: { flatPaisePerOrder?: string | undefined }): bigint =>
+  c.flatPaisePerOrder === undefined ? 0n : BigInt(c.flatPaisePerOrder);
+
 export function computeCharges(
   fees: FeesConfig,
   side: Side,
@@ -53,11 +57,12 @@ export function computeCharges(
   for (const name of names) {
     const c = fees.charges[name];
     if (!applies(c.appliesTo, side)) continue;
-    lines[name] = divRoundHalfUp(valuePaise * BigInt(c.rate.num), BigInt(c.rate.den));
+    lines[name] = divRoundHalfUp(valuePaise * BigInt(c.rate.num), BigInt(c.rate.den)) + flatOf(c);
   }
-  // GST on the exact (unrounded) base: value × Σ(num_i/den_i) × gstNum/gstDen.
+  // GST on the exact (unrounded) base: (value × Σ(num_i/den_i) + Σ flat_i) × gstNum/gstDen.
   let num = 0n;
   let den = 1n;
+  let flat = 0n;
   for (const name of fees.gst.on) {
     const c = fees.charges[name];
     if (!applies(c.appliesTo, side)) continue;
@@ -68,22 +73,27 @@ export function computeCharges(
     const g = gcd(num, den);
     num /= g;
     den /= g;
+    flat += flatOf(c);
   }
   lines.gst = divRoundHalfUp(
-    valuePaise * num * BigInt(fees.gst.rate.num),
+    (valuePaise * num + flat * den) * BigInt(fees.gst.rate.num),
     den * BigInt(fees.gst.rate.den),
   );
-  if (side === 'SELL' && opts.dpApplies) lines.dp = BigInt(fees.dpCharge.paisePerSymbolPerDay);
+  if (side === 'SELL' && opts.dpApplies && fees.dpCharge)
+    lines.dp = BigInt(fees.dpCharge.paisePerSymbolPerDay);
   let total = 0n;
   for (const k of CHARGE_KEYS) total += lines[k];
   return { lines, total };
 }
 
-/** Charge rate for one side as a percentage string with 3 decimals, excluding the DP charge. For the prompt. */
+/**
+ * Charge rate for one side as a percentage string with 3 decimals, excluding flat per-order amounts
+ * (see flatPerOrderPaise) and the DP charge. For the prompt.
+ */
 export function costPctString(fees: FeesConfig, side: Side): string {
   // Evaluate on ₹1 crore (1e9 paise) so rounding is far below the displayed precision.
   const base = 1_000_000_000n;
-  const { lines } = computeCharges(fees, side, base, { dpApplies: false });
+  const { lines } = computeCharges(withoutFlat(fees), side, base, { dpApplies: false });
   const t =
     lines.brokerage +
     lines.stt +
@@ -94,6 +104,21 @@ export function costPctString(fees: FeesConfig, side: Side): string {
     lines.gst;
   const thousandthsPct = divRoundHalfUp(t * 100_000n, base); // percent × 1000
   return `${thousandthsPct / 1000n}.${(thousandthsPct % 1000n).toString().padStart(3, '0')}`;
+}
+
+function withoutFlat(fees: FeesConfig): FeesConfig {
+  const charges = Object.fromEntries(
+    Object.entries(fees.charges).map(([k, c]) => [k, { ...c, flatPaisePerOrder: undefined }]),
+  ) as FeesConfig['charges'];
+  return { ...fees, charges };
+}
+
+/** Flat amount per executed order on one side, GST included (e.g. ₹20 brokerage → 2360 paise). */
+export function flatPerOrderPaise(fees: FeesConfig, side: Side): bigint {
+  const zeroRates = Object.fromEntries(
+    Object.entries(fees.charges).map(([k, c]) => [k, { ...c, rate: { num: 0, den: 1 } }]),
+  ) as FeesConfig['charges'];
+  return computeCharges({ ...fees, charges: zeroRates }, side, 0n, { dpApplies: false }).total;
 }
 
 export function chargesToJson(c: Charges): Record<ChargeKey, string> {

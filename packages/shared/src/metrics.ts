@@ -44,30 +44,31 @@ export interface TradeStats {
   trades: number;
   turnoverPaise: bigint;
   chargesPaise: bigint;
-  /** Share of SELL fills with positive realised P&L; null until 5 sells. */
+  /** Share of closing fills with positive realised P&L; null until 5 closes. */
   winRate: number | null;
-  sells: number;
+  /** Closing fills: a SELL of a long, or a BUY that covers a short (they carry realised P&L). */
+  closes: number;
 }
 
-export function tradeStats(trades: TradeRecord[], minSells = 5): TradeStats {
+export function tradeStats(trades: TradeRecord[], minCloses = 5): TradeStats {
   let turnover = 0n;
   let charges = 0n;
-  let sells = 0;
+  let closes = 0;
   let wins = 0;
   for (const t of trades) {
     turnover += t.grossPaise;
     charges += t.chargesTotalPaise;
-    if (t.side === 'SELL') {
-      sells++;
-      if ((t.realizedPnlPaise ?? 0n) > 0n) wins++;
+    if (t.realizedPnlPaise !== null) {
+      closes++;
+      if (t.realizedPnlPaise > 0n) wins++;
     }
   }
   return {
     trades: trades.length,
     turnoverPaise: turnover,
     chargesPaise: charges,
-    sells,
-    winRate: sells >= minSells ? wins / sells : null,
+    closes,
+    winRate: closes >= minCloses ? wins / closes : null,
   };
 }
 

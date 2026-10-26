@@ -12,6 +12,7 @@ import { loadSnapshot } from '../data/snapshot';
 import { monkeyDecide } from '../core/monkey';
 import { loadLedger } from './ledger-store';
 import { pricesWithFallback } from './context';
+import { tradingLimits } from './runner';
 
 export interface ReplayResult {
   roundId: string;
@@ -51,7 +52,7 @@ export async function replayRound(
   const firstSeq = inRound.length ? BigInt(inRound[0]!.seq) : null;
   const decisions = (
     await db.query(
-      "SELECT id, participant_id, status, raw_response, parsed, rng_seed FROM decisions WHERE round_id = $1 AND status IN ('OK','RETIRED')",
+      "SELECT id, participant_id, status, raw_response, parsed, rng_seed FROM decisions WHERE round_id = $1 AND status IN ('OK','RETIRED','SQUARE_OFF')",
       [roundId],
     )
   ).rows;
@@ -93,7 +94,8 @@ export async function replayRound(
       positions: new Map(),
     };
     let actions: unknown[];
-    if (d.status === 'RETIRED') actions = (d.parsed?.liquidation as unknown[]) ?? [];
+    const forced = d.status === 'RETIRED' || d.status === 'SQUARE_OFF';
+    if (forced) actions = (d.parsed?.liquidation as unknown[]) ?? [];
     else if (d.rng_seed) {
       // The Monkey: regenerate from its seed and the decision snapshot, and check it matches what was stored.
       const tradeable = new Map(
@@ -112,6 +114,7 @@ export async function replayRound(
         portfolio,
         tradeable,
         ltp: (s) => decisionSnap?.quotes.find((q) => q.symbol === s && q.valid)?.ltpPaise ?? null,
+        allowShort: tradingLimits(arena).allowShort,
       });
       if (m.seedHex !== d.rng_seed)
         mismatches.push(`monkey seed ${m.seedHex} != stored ${d.rng_seed}`);
@@ -140,17 +143,16 @@ export async function replayRound(
         .map((e) => e.symbol!),
     );
     const res = executeActions(actions, portfolio, {
-      universe: new Set(d.status === 'RETIRED' ? symbols : universeAtRound),
+      universe: new Set(forced ? symbols : universeAtRound),
       fillQuotes,
       valuationPrice: (s) => valuation.get(s) ?? null,
-      suspended: d.status === 'RETIRED' ? new Set() : new Set([...flags, ...corp]),
+      suspended: forced ? new Set() : new Set([...flags, ...corp]),
       soldToday: soldBefore,
-      maxActions:
-        d.status === 'RETIRED'
-          ? Math.max(arena.limits.maxActionsPerRound, actions.length)
-          : arena.limits.maxActionsPerRound,
-      maxWeightPct: arena.limits.maxWeightPct,
-      slippageBps: arena.limits.slippageBps,
+      ...tradingLimits(arena),
+      maxActions: forced
+        ? Math.max(arena.limits.maxActionsPerRound, actions.length, 1)
+        : arena.limits.maxActionsPerRound,
+      forced,
       fees,
     });
     const stored = inRound.filter((e) => e.participant_id === d.participant_id);

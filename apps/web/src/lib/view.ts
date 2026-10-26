@@ -1,5 +1,6 @@
 /** Pure view-model computations shared by pages (no I/O). All money stays bigint paise. */
 import type { MarkRow, Participant, ParticipantCounts, LedgerRow, Season } from '@arena/db/read';
+import { tradeVerb } from '@arena/shared/format';
 import {
   totalReturn,
   maxDrawdown,
@@ -134,6 +135,7 @@ export function verdict(
     side: string | null;
     quantity: number | null;
     symbol: string | null;
+    positionAfter?: number | null;
   }[],
 ): string {
   const map: Record<string, string> = {
@@ -149,12 +151,23 @@ export function verdict(
   };
   if (map[status]) return map[status]!;
   const done = actions.filter((a) => a.status === 'executed');
-  const sells = done.filter((a) => a.side === 'SELL').map((a) => `${a.quantity} ${a.symbol}`);
-  const buys = done.filter((a) => a.side === 'BUY').map((a) => `${a.quantity} ${a.symbol}`);
-  const parts: string[] = [];
-  if (sells.length) parts.push(`sold ${sells.join(', ')}`);
-  if (buys.length) parts.push(`bought ${buys.join(', ')}`);
+  // Sells run before buys; group by plain verb ("sold", "shorted", "bought back", "bought").
+  const groups = new Map<string, string[]>();
+  for (const a of [
+    ...done.filter((x) => x.side === 'SELL'),
+    ...done.filter((x) => x.side === 'BUY'),
+  ]) {
+    const verb = tradeVerb(
+      a.side as 'BUY' | 'SELL',
+      a.quantity ?? 0,
+      a.positionAfter ?? null,
+    ).toLowerCase();
+    groups.set(verb, [...(groups.get(verb) ?? []), `${a.quantity} ${a.symbol}`]);
+  }
+  const parts = [...groups].map(([verb, list]) => `${verb} ${list.join(', ')}`);
   if (status === 'RETIRED') return parts.length ? `Retired: ${parts.join(', ')}` : 'Retired';
+  if (status === 'SQUARE_OFF')
+    return parts.length ? `Square-off: ${parts.join(', ')}` : 'Square-off: nothing closed';
   if (!parts.length) return actions.length ? 'Held (every action rejected)' : 'Held';
   const s = parts.join(', ');
   return s.charAt(0).toUpperCase() + s.slice(1);

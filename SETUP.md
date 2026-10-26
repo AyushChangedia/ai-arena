@@ -165,7 +165,20 @@ For reference, a web search on 2026-10-24 suggested the budget tier would come o
 
 ### 11. Check the charges against a broker calculator
 
-The fee rates in `config/fees.json` come from SPEC §11.5; broker sites were unreachable from the build environment.
+Since 2026-10-26 the arena trades **intraday** with a flat ₹20 brokerage per order (your choice). Check those rates first:
+
+1. Open https://zerodha.com/brokerage-calculator → **Equity** → **Intraday** tab.
+2. Enter buy price 1000, sell price 1000, quantity 100 (₹1,00,000 each side), exchange NSE.
+3. Compare each line with the engine's intraday golden cases (in `packages/engine/test/core/fees.test.ts`):
+   - STT: **₹25.00** (0.025%, sell side only)
+   - Stamp duty: **₹3.00** (0.003%, buy side only)
+   - Exchange transaction charge: **₹2.97** per side
+   - SEBI: **₹0.10** per side
+   - Brokerage: Zerodha shows **₹40** in total (₹20 per order, because 0.03% of ₹1,00,000 is more than ₹20). The arena always charges ₹20 per order; on orders under ₹66,667 Zerodha would charge less.
+   - Engine totals: BUY **₹30.34**, SELL **₹52.34**.
+4. If STT, stamp, exchange and SEBI match, set `"verifiedOn": "YYYY-MM-DD"` in `config/fees.json` and commit. If any rate differs, don't edit the numbers yourself: send the calculator's breakdown to a Claude session, so the rates and golden tests change together.
+
+The delivery profile S0 ran under is kept in `packages/engine/test/fixtures/delivery/fees.json`. Its check, for reference:
 
 1. Open https://zerodha.com/brokerage-calculator → **Equity** → **Delivery** tab.
 2. Enter buy price 1000, sell price 1000, quantity 100 (₹1,00,000 each side), exchange NSE.
@@ -269,6 +282,24 @@ Optional: variable **`DATA_BRANCH`** if you want the end-of-day export committed
 
 **Actions** → **tick** → if you see "This scheduled workflow is disabled", click **Enable workflow**. Do the same for **keepalive**. Then run **tick** once by hand with **dry** ticked: expect a green run whose summary says what would run now.
 
+**The timer that actually starts the engine (cron-job.org).** GitHub's own schedule for `tick.yml` never fired on this repo (2026-10-26), so a free external timer starts it instead (SPEC §18.4):
+
+1. **GitHub token:** https://github.com/settings/personal-access-tokens/new.
+   - Name `ai-arena-tick-timer`, expiration 1 year (note the date).
+   - **Only select repositories → ai-arena**.
+   - In the **Repositories** permissions box, add **Actions: Read and write**. Leave the Account box empty.
+   - Generate it and copy it once.
+2. **cron-job.org** (free account) → **Create cronjob**:
+   - URL `https://api.github.com/repos/AyushChangedia/ai-arena/actions/workflows/tick.yml/dispatches`.
+   - Custom schedule, crontab `2,12,22,32,42,52 3-10 * * 1-5` in **UTC** (08:32–16:22 IST, weekdays).
+   - **Advanced:** method `POST`; body `{"ref":"main"}`; headers:
+     - `Accept: application/vnd.github+json`
+     - `Authorization: Bearer <token>`
+     - `X-GitHub-Api-Version: 2022-11-28`
+     - `Content-Type: application/json`
+3. **Test run** must answer **204**, then **Create**. GitHub → Actions → tick shows a new run within a minute.
+4. **Before the token expires**, make a new one the same way and paste it into the cronjob's `Authorization` header. When it expires the timer gets 401s, no rounds run, and cron-job.org emails you about the failures.
+
 ### 23. Start the shadow season
 
 Run the workflow **admin** with:
@@ -280,6 +311,24 @@ Run the workflow **admin** with:
 - reason: `Shadow season before launch`
 
 The site shows the pre-season countdown with the "private preview" banner and `noindex`.
+
+### 23a. Switch to intraday with a fresh practice season (2026-10-26)
+
+After the intraday PR is merged, run these three workflows in order, each after the previous one finishes green. All three must be done before 09:30 IST on the new season's first day.
+
+1. **migrate** (no inputs). Its summary should list `0003_intraday_strategy.sql` as applied.
+2. **admin** with:
+   - command: `end-season`
+   - id: `S0`
+   - reason: `Rules changed to intraday long-short with a 15:15 square-off; S0 ends after day 1.`
+3. **admin** with:
+   - command: `start-season`
+   - id: `P1`
+   - start: the next trading day, `YYYY-MM-DD` (for example `2026-10-27`)
+   - mode: `shadow`
+   - reason: `Fresh practice season on intraday rules`
+
+S0's standings stay frozen at Monday's close and remain viewable at `/seasons/S0`. The site switches to P1 with the pre-season countdown. On P1's first day, check the **tick** run at about 15:02 IST: its summary should show "square-off 15:02" with every open position closed.
 
 ### 24. Watch the first day
 

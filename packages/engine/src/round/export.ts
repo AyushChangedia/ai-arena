@@ -40,16 +40,16 @@ export async function exportDay(
   mkdirSync(join(rootDir, 'public-data', 'anchors'), { recursive: true });
   const rounds = await db.query(
     `SELECT id, season_id, to_char(trading_date,'YYYY-MM-DD') AS trading_date, to_char(slot_time,'HH24:MI') AS slot_time, scheduled_at, started_at,
-       finished_at, reveal_at, status, status_reason, decision_snapshot_id, fill_snapshot_id ${includeMarketTables ? ', market_block' : ''}
+       finished_at, reveal_at, status, status_reason, kind, decision_snapshot_id, fill_snapshot_id ${includeMarketTables ? ', market_block' : ''}
      FROM rounds WHERE trading_date = $1 AND reveal_at <= now() ORDER BY slot_time`,
     [date],
   );
   const decisions = await db.query(
-    `SELECT d.id, d.round_id, d.participant_id, p.openrouter_model_id AS model_id, d.status, d.error_class, d.reasoning, d.note_to_self, d.flags,
+    `SELECT d.id, d.round_id, d.participant_id, p.openrouter_model_id AS model_id, d.status, d.error_class, d.strategy, d.reasoning, d.note_to_self, d.flags,
        d.serving_model, d.attempts, d.latency_ms, d.input_tokens, d.output_tokens, d.reasoning_tokens, d.cost_usd, d.cost_estimated, d.rng_seed,
        d.private_block, d.parsed->>'content' AS answer_text,
        (SELECT coalesce(json_agg(json_build_object('position', a.position, 'side_raw', a.side_raw, 'symbol_raw', a.symbol_raw, 'quantity_raw', a.quantity_raw,
-          'why', a.why, 'side', a.side, 'symbol', a.symbol, 'quantity', a.quantity, 'status', a.status, 'reject_code', a.reject_code,
+          'why', a.why, 'exit_plan', a.exit_plan, 'side', a.side, 'symbol', a.symbol, 'quantity', a.quantity, 'status', a.status, 'reject_code', a.reject_code,
           'reject_detail', a.reject_detail, 'model_fault', a.model_fault) ORDER BY a.position), '[]'::json) FROM actions a WHERE a.decision_id = d.id) AS actions
      FROM decisions d JOIN rounds r ON r.id = d.round_id JOIN participants p ON p.id = d.participant_id
      WHERE r.trading_date = $1 AND d.reveal_at <= now() ORDER BY r.slot_time, p.slot`,

@@ -5,6 +5,7 @@ import type { ChatMessage } from './openrouter';
 export const DECISION_JSON_SCHEMA = {
   type: 'object',
   properties: {
+    strategy: { type: 'string' },
     reasoning: { type: 'string' },
     actions: {
       type: 'array',
@@ -15,14 +16,15 @@ export const DECISION_JSON_SCHEMA = {
           symbol: { type: 'string' },
           quantity: { type: 'integer' },
           why: { type: 'string' },
+          exit_plan: { type: 'string' },
         },
-        required: ['side', 'symbol', 'quantity', 'why'],
+        required: ['side', 'symbol', 'quantity', 'why', 'exit_plan'],
         additionalProperties: false,
       },
     },
     note_to_self: { type: 'string' },
   },
-  required: ['reasoning', 'actions', 'note_to_self'],
+  required: ['strategy', 'reasoning', 'actions', 'note_to_self'],
   additionalProperties: false,
 } as const;
 

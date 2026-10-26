@@ -28,19 +28,51 @@ async function Rules() {
   const holidays = holidayDates();
   const a = await loadArena();
   const slots = slotTimes();
+  const io = arena.product === 'intraday_long_short' ? arena.intraday : undefined;
+  const w = arena.limits.maxWeightPct;
   const rules: [string, string][] = [
     ['Universe', 'Nifty 50 constituents, NSE cash market, EQ series'],
     ['Starting cash', `${formatInr(BigInt(arena.startingCashPaise))} per participant`],
-    ['Product', 'Long-only delivery. No short selling, leverage, F&O or intraday margin'],
+    io
+      ? [
+          'Product',
+          'Intraday, long or short. A buy opens or adds to a long; a sell opens or adds to a short. No leverage, no F&O',
+        ]
+      : ['Product', 'Long-only delivery. No short selling, leverage, F&O or intraday margin'],
     [
       'Round times',
       `${slots[0]} to ${slots.at(-1)} IST every ${arena.schedule.everyMinutes} minutes, ${slots.length} rounds, NSE trading days only`,
     ],
+    ...(io
+      ? ([
+          [
+            'Square-off',
+            `From ${io.squareOffFrom} IST (by ${io.squareOffDeadline} at the latest) the engine closes every open position: longs sold at the best bid, shorts bought back at the best ask, with normal costs. Nothing is held overnight, so every trading day starts in cash`,
+          ],
+          [
+            'Net positions',
+            'A sell closes a long first and any shares beyond it open a short; a buy covers a short first and any shares beyond it open a long',
+          ],
+        ] as [string, string][])
+      : []),
     ['Max actions per round', String(arena.limits.maxActionsPerRound)],
-    [
-      'Concentration limit',
-      `A buy may not take that stock above ${arena.limits.maxWeightPct}% of total portfolio value. Price drift above ${arena.limits.maxWeightPct}% is allowed`,
-    ],
+    io
+      ? [
+          'Concentration limit',
+          `A trade that opens or adds to a position may not take that stock above ${w}% of total portfolio value, long or short. Price drift above ${w}% is allowed`,
+        ]
+      : [
+          'Concentration limit',
+          `A buy may not take that stock above ${w}% of total portfolio value. Price drift above ${w}% is allowed`,
+        ],
+    ...(io
+      ? ([
+          [
+            'Exposure limit',
+            `Longs plus shorts at market value may not exceed ${arena.limits.maxGrossExposurePct}% of total portfolio value after a trade that opens or adds to a position (no leverage)`,
+          ],
+        ] as [string, string][])
+      : []),
     ['Order size', 'Whole shares, quantity of at least 1, no partial fills'],
     [
       'Execution order',
@@ -51,11 +83,25 @@ async function Rules() {
       'Fill price',
       `Buy at the best ask, sell at the best bid from the fill snapshot. Without depth: last traded price ± ${arena.limits.slippageBps} basis points. The method used is recorded`,
     ],
-    ['Costs', 'Real Indian equity-delivery charges for a discount broker (below)'],
+    io
+      ? [
+          'Costs',
+          'Real Indian equity-intraday charges for a discount broker, with ₹20 brokerage per order (below)',
+        ]
+      : ['Costs', 'Real Indian equity-delivery charges for a discount broker (below)'],
     ['Sale proceeds', 'Usable immediately in the same round'],
+    io
+      ? [
+          'Corporate actions',
+          'None apply: every position is closed before the market shuts, so nothing is held on an ex-date',
+        ]
+      : [
+          'Corporate actions',
+          'Splits and bonuses adjust quantity and average cost on the ex-date. Cash dividends are credited on the ex-date for shares held at the previous close',
+        ],
     [
-      'Corporate actions',
-      'Splits and bonuses adjust quantity and average cost on the ex-date. Cash dividends are credited on the ex-date for shares held at the previous close',
+      'Strategy',
+      'Each round a model states its strategy, and for every trade the signal it acted on and its exit plan. They are published, never acted on',
     ],
     ['Missed round', 'Portfolio unchanged; shown as missed with the reason'],
     [
@@ -72,12 +118,22 @@ async function Rules() {
       (c) =>
         [
           c.label,
-          c.rate.num === 0 ? '₹0' : pct(c.rate.num, c.rate.den),
-          c.appliesTo === 'both'
-            ? 'Buy and sell value'
-            : c.appliesTo === 'buy'
-              ? 'Buy value only'
-              : 'Sell value only',
+          c.flatPaisePerOrder !== undefined && c.rate.num === 0
+            ? `${formatInr(BigInt(c.flatPaisePerOrder))} per order`
+            : c.rate.num === 0
+              ? '₹0'
+              : pct(c.rate.num, c.rate.den),
+          c.flatPaisePerOrder !== undefined && c.rate.num === 0
+            ? c.appliesTo === 'both'
+              ? 'Each buy and sell order'
+              : c.appliesTo === 'buy'
+                ? 'Each buy order'
+                : 'Each sell order'
+            : c.appliesTo === 'both'
+              ? 'Buy and sell value'
+              : c.appliesTo === 'buy'
+                ? 'Buy value only'
+                : 'Sell value only',
         ] as [string, string, string],
     ),
     [
@@ -85,11 +141,15 @@ async function Rules() {
       pct(fees.gst.rate.num, fees.gst.rate.den),
       `On ${fees.gst.on.map((k) => fees.charges[k].label).join(', ')}`,
     ],
-    [
-      fees.dpCharge.label,
-      formatInr(BigInt(fees.dpCharge.paisePerSymbolPerDay)),
-      fees.dpCharge.note,
-    ],
+    ...(fees.dpCharge
+      ? ([
+          [
+            fees.dpCharge.label,
+            formatInr(BigInt(fees.dpCharge.paisePerSymbolPerDay)),
+            fees.dpCharge.note,
+          ],
+        ] as [string, string, string][])
+      : []),
   ];
   const content = (
     <>

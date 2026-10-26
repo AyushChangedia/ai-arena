@@ -5,6 +5,7 @@ import type { Standing } from '@/lib/view';
 import { verdict, firstLine } from '@/lib/view';
 import { Chip } from './chip';
 import { Money, Pct, Pnl, Missing } from './num';
+import { arena } from '@/lib/config';
 
 /**
  * One panel per AI model (the owner's request, 2026-10-25): name, the ₹1,00,000 it started with,
@@ -84,6 +85,8 @@ function ModelCard({
   const total = s?.totalPaise ?? null;
   const change = total === null ? null : total - startingCashPaise;
   const headingId = `model-${p.slot}`;
+  const firstReason = decision?.actions.find((a) => a.status === 'executed' && a.why)?.why ?? null;
+  const intraday = arena.product === 'intraday_long_short' ? arena.intraday : undefined;
   return (
     <article
       aria-labelledby={headingId}
@@ -124,7 +127,11 @@ function ModelCard({
         {decision ? (
           <>
             <p className="font-medium">{verdict(decision.status, decision.actions)}</p>
-            {decision.reasoning ? (
+            {firstReason ? (
+              <p className="model-text mt-0.5 line-clamp-3 text-text-2">
+                <span className="not-italic">Why: </span>“{firstReason}”
+              </p>
+            ) : decision.reasoning ? (
               <p className="model-text mt-0.5 line-clamp-2 text-text-2">
                 {firstLine(decision.reasoning)}
               </p>
@@ -135,6 +142,15 @@ function ModelCard({
         )}
       </div>
 
+      {decision?.strategy ? (
+        <div className="mt-3 border-t border-line pt-3 text-sm">
+          <p className="text-text-2">Strategy</p>
+          <p className="model-text mt-0.5 line-clamp-4">
+            {decision.strategy.slice(0, arena.display.strategyDisplayChars)}
+          </p>
+        </div>
+      ) : null}
+
       <div className="mt-3 border-t border-line pt-3 text-sm">
         <p className="text-text-2">Portfolio</p>
         {cashPaise === null && !holdings.length ? (
@@ -143,7 +159,7 @@ function ModelCard({
           </p>
         ) : (
           <table className="mt-1 w-full">
-            <caption className="sr-only">Holdings of {p.displayName}</caption>
+            <caption className="sr-only">Positions of {p.displayName}</caption>
             <thead className="sr-only">
               <tr>
                 <th scope="col">Stock</th>
@@ -165,7 +181,10 @@ function ModelCard({
                     <th scope="row" className="py-0.5 text-left font-medium">
                       {h.symbol}
                     </th>
-                    <td className="num py-0.5 text-right text-text-2">{formatInt(h.quantity)}</td>
+                    <td className="num py-0.5 text-right text-text-2">
+                      {formatInt(h.quantity)}
+                      {h.quantity < 0 ? ' short' : ''}
+                    </td>
                     <td className="py-0.5 text-right">
                       <Money paise={value} decimals={0} missing="No price yet" />
                     </td>
@@ -192,6 +211,11 @@ function ModelCard({
             </tbody>
           </table>
         )}
+        {intraday ? (
+          <p className="mt-1 text-xs text-text-2">
+            Intraday: every position is closed by {intraday.squareOffDeadline} IST.
+          </p>
+        ) : null}
       </div>
 
       <Link

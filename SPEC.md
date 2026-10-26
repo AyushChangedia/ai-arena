@@ -100,19 +100,22 @@ All values live in `config/arena.json`. Code reads the config; the `/rules` page
 |---|---|
 | Universe | Nifty 50 constituents, NSE cash market, EQ series (`config/universe/nifty50.json`) |
 | Starting cash | ₹1,00,000 per participant (10,000,000 paise) |
-| Product | Long-only delivery. No short selling, leverage, F&O or intraday margin |
-| Round times | Set in `arena.json` `schedule`. Free-tier seasons (the owner's choice, 2026-10-25): 09:30, 11:00, 12:30 and 14:00 IST, 4 rounds. Paid tiers: 09:30 to 15:00 IST every 30 minutes, 12 rounds. NSE trading days only |
+| Product | **Intraday, long or short** (the owner's choice, 2026-10-26; `product: "intraday_long_short"`). A BUY opens or adds to a long; a SELL opens or adds to a short (negative quantity). Net positions: a SELL closes a long first and any shares beyond it open a short; a BUY covers a short first and any shares beyond it open a long. No leverage, no F&O. (Seasons up to S0 ran long-only delivery, `product: "long_only_delivery"`, which the engine still supports.) |
+| Square-off | Intraday: from `intraday.squareOffFrom` (15:00 IST) the engine closes every open position, and every position should be closed by `intraday.squareOffDeadline` (15:15 IST) (§12.3a). Nothing is held overnight; every trading day starts in cash |
+| Round times | Set in `arena.json` `schedule`. Free-tier seasons (the owner's choice, 2026-10-25): 09:30, 11:00, 12:30 and 14:00 IST, 4 rounds. Paid tiers: 09:30 to 14:30 IST every 30 minutes, 11 rounds (intraday: the last round plus its grace window must end before the square-off; config validation enforces it). NSE trading days only |
 | Max actions per round | 5 |
-| Concentration limit | A BUY may not take that stock above 25% of total portfolio value. Price drift above 25% is allowed |
+| Concentration limit | A trade that opens or adds to a position may not take that stock above 25% of total portfolio value, long or short (absolute value). Price drift above 25% is allowed |
+| Exposure limit | Intraday: after a trade that opens or adds to a position, longs plus shorts at market value may not exceed `limits.maxGrossExposurePct` (100%) of total portfolio value. No leverage |
 | Order size | Whole shares, quantity ≥ 1, no partial fills |
 | Execution order | All SELLs (in the model's order), then all BUYs (in the model's order); each checked against the running state |
 | Same symbol both sides | A BUY of a symbol that is also sold in the same round is rejected |
 | Fill price | BUY at best ask, SELL at best bid from the fill snapshot. If depth is missing: last traded price ± 5 bps slippage. The method used is recorded |
-| Costs | Real Indian equity-delivery charges, discount-broker profile, `config/fees.json` (§11.5) |
+| Costs | Real Indian equity-intraday charges, discount-broker profile, with a flat ₹20 brokerage per executed order (the owner's choice, 2026-10-26), `config/fees.json` (§11.5) |
 | Sale proceeds | Usable immediately in the same round (simplification, disclosed on /rules) |
-| Corporate actions | Splits and bonuses adjust quantity and average cost on the ex-date. Cash dividends are credited on the ex-date for shares held at the previous close (simplification, disclosed) |
+| Corporate actions | Intraday: none apply, since nothing is held overnight. (Delivery: splits and bonuses adjust quantity and average cost on the ex-date; cash dividends are credited on the ex-date for shares held at the previous close.) |
+| Strategy | Each answer states the model's strategy, and each action the signal behind it (`why`) and an exit plan (the owner's request, 2026-10-26; §10.3). Published, never acted on |
 | Missed round | Portfolio unchanged; shown as missed with the reason |
-| Season | 20 trading days. Every participant restarts at ₹1,00,000 |
+| Season | 20 trading days. Every participant restarts at ₹1,00,000. An admin can end a season early (`end-season`, §18.1), as when S0 ended after its first day for the switch to intraday (the owner's choice, 2026-10-26) |
 | Public delay | Each round appears on the site 15 minutes after it finishes |
 
 ### 3.1 Participants
@@ -373,6 +376,8 @@ For every call record: prompt hash, request parameters (no secrets), raw respons
 
 ## 10. The trader prompt
 
+**Since 2026-10-26 (the owner's decisions):** the rules list is rendered for the configured product. For `intraday_long_short` it replaces rules 2, 4 and 5 below with: intraday long or short (a short has a negative quantity); the square-off from `intraday.squareOffFrom` (by `squareOffDeadline` at the latest), nothing held overnight; net positions (a SELL closes a long first, then opens a short; a BUY covers a short first, then opens a long; a BUY needs cash for its full cost); the concentration limit for any trade that opens or adds to a position, long or short, plus the exposure limit. Costs read "{flat} INR per order (brokerage with GST), plus about {buy}% … and about {sell}% …" with no DP charge. The schedule line adds "then the square-off at {time} IST". Every product adds an "Explain your trading" paragraph asking for a strategy, a `why` (the signal and what the model expects) and an `exit_plan` per action, stating that an exit plan is not an order, and the reply format adds `"strategy"` (up to 600 characters) and `"exit_plan"` (up to 200 characters); `why` grows to 400 characters. The per-round message under intraday adds "Square-off: {time} IST today." to the first line and shows "Positions value (longs minus shorts)", "Exposure (longs plus shorts) … limit {pct}%" and signed positions. The engine's snapshot tests pin both renderings.
+
 Identical for every participant. Don't tell a model which lab it is or who it's competing against. All numbers come from the engine's data; bracketed values are filled from config and the database. Numbers in the prompt are plain decimals (no lakh commas, no ₹ symbol) to avoid parsing mistakes.
 
 ### 10.1 System message (static for the season)
@@ -434,8 +439,9 @@ NO_PRICE this round: {symbols with reason, or "none"}
 
 ### 10.3 Answer schema (zod, enforced after parsing)
 
+- `strategy` (since 2026-10-26): string, the model's approach (setups, sizing, exits); stored in `decisions.strategy`, displayed up to 600 characters on its panel, the round page and the Thinking tab. Missing → flag `missing_strategy` and "No strategy given"; it never blocks the trades.
 - `reasoning`: string; stored in full, displayed up to 1,200 characters with a "show full answer" toggle.
-- `actions`: array. Each item: `side` ∈ {BUY, SELL}; `symbol` string; `quantity` integer ≥ 1 (a string "10" or 10.5 is invalid, not converted); `why` string (display up to 200 characters).
+- `actions`: array. Each item: `side` ∈ {BUY, SELL}; `symbol` string; `quantity` integer ≥ 1 (a string "10" or 10.5 is invalid, not converted); `why` string (display up to 400 characters); `exit_plan` string (since 2026-10-26: a target, stop or time; stored in `actions.exit_plan`, display up to 200 characters; published, never acted on).
 - `note_to_self`: string, stored up to 500 characters (truncation flagged).
 
 ---
@@ -461,14 +467,15 @@ Trim whitespace, uppercase, strip a leading `NSE:` and a trailing `.NS` or `-EQ`
 | `MALFORMED_ACTION` | Not an object, or missing side/symbol/quantity | yes |
 | `INVALID_SIDE` | Side isn't BUY or SELL | yes |
 | `INVALID_QUANTITY` | Not a JSON integer ≥ 1 | yes |
-| `UNKNOWN_SYMBOL` | Not in the universe (BUY) or not held (SELL) | yes |
-| `NOT_IN_UNIVERSE_FOR_BUY` | Held stock that left the index: can sell, can't buy | yes |
+| `UNKNOWN_SYMBOL` | Not in the universe (a trade that opens a position), or not held (a SELL under long-only rules) | yes |
+| `NOT_IN_UNIVERSE_FOR_BUY` | A position in a stock that left the index: it can be closed, not added to | yes |
 | `DUPLICATE_ACTION` | Same side and symbol already in this round | yes |
 | `CONFLICTING_SIDES` | BUY of a symbol also sold this round | yes |
 | `TOO_MANY_ACTIONS` | Beyond the 5th action | yes |
 | `INSUFFICIENT_HOLDINGS` | SELL quantity > shares held | yes |
 | `INSUFFICIENT_CASH` | BUY cost including charges > available cash | yes |
-| `CONCENTRATION_LIMIT` | BUY would take the stock above 25% of total value | yes |
+| `CONCENTRATION_LIMIT` | A trade that opens or adds to a position would take the stock above 25% of total value (long or short) | yes |
+| `EXPOSURE_LIMIT` | Intraday: longs plus shorts would exceed 100% of total value (no leverage) | yes |
 | `PRICE_UNAVAILABLE` | No valid fill price for the symbol | no |
 | `SYMBOL_SUSPENDED` | Symbol under corporate-action review or an admin halt | no |
 
@@ -480,6 +487,8 @@ Only "model's fault" codes count against the model's accepted-action rate.
 - BUY at best ask; SELL at best bid. If depth is unavailable for that symbol: LTP × (1 + 5 bps) for buys, LTP × (1 − 5 bps) for sells, rounded to the nearest paisa. Record `price_source` (`ask`, `bid`, `ltp_slippage`) and the snapshot ID on every fill.
 
 ### 11.5 Charges
+
+**Intraday profile (committed since 2026-10-26, the owner's choice):** brokerage a flat ₹20 per executed order (`flatPaisePerOrder: "2000"`; real discount brokers charge the lower of ₹20 and 0.03%), STT 0.025% (1/4000) on the sell side only, exchange 0.00297%, SEBI ₹10 per crore, IPFT ₹0.10 per lakh (as below), stamp duty 0.003% (3/100,000) on buys, GST 18% on brokerage + exchange + SEBI + IPFT (the flat brokerage included), no DP charge (`dpCharge: null`). A charge may carry a rate and a flat amount per order; the flat part is added before rounding, and GST applies to the exact base including it. The delivery profile below is kept as a test fixture (`packages/engine/test/fixtures/delivery/`) with its golden cases; intraday has its own golden cases.
 
 `config/fees.json` stores each rate as an exact fraction (numerator/denominator), plus source URLs and a `verifiedOn` date. Defaults, from the brokers' published charges pages for equity delivery as of October 2026 (re-verify in Phase 2 and record the date):
 
@@ -497,6 +506,8 @@ Only "model's fault" codes count against the model's accepted-action rate.
 Computation is in BigInt paise. Each charge is rounded half-up to the nearest paisa per order. Disclose on /rules: real contract notes round some charges (STT, for example) to the rupee, so a real broker's costs may differ by about a rupee per order. Golden test cases in Phase 2 must match a broker's online calculator to the paisa for each charge, before rounding differences.
 
 ### 11.6 Positions, average cost, realised P&L
+
+Intraday positions are signed: a short has a negative quantity, and its average cost is its average sale price. Closing part of a short books (average sale price − buy price) × quantity − that order's charges. A trade that crosses zero books realised P&L on the part that closed (less the whole order's charges), and the new position's average cost is the fill price. Holdings value is Σ quantity × price, so a short counts negative and total value = cash + longs − shorts.
 
 - Average cost = weighted average fill price of the shares currently held, excluding charges (how brokers show it). Charges hit cash and therefore total value and total return exactly.
 - On SELL: realised P&L = (fill price − average cost) × quantity − that order's charges. Average cost of the remaining shares doesn't change.
@@ -521,7 +532,7 @@ Ledger entry types: `SEASON_START` (starting cash), `BUY`, `SELL`, `DIVIDEND`, `
   - vs Nifty = participant return − Nifty benchmark return (percentage points).
   - Max drawdown from the series of round marks.
   - Trades (count), turnover, total charges paid.
-  - Win rate = share of SELL fills with positive realised P&L (shown only after 5 sells).
+  - Win rate = share of closing fills (a SELL of a long, or a BUY that covers a short) with positive realised P&L (shown only after 5).
   - Clean answers = OK decisions ÷ (OK + `INVALID_RESPONSE`).
   - Uptime = rounds with a model answer (OK or invalid) ÷ rounds held.
   - Accepted actions = executed ÷ (executed + model-fault rejections).
@@ -531,7 +542,7 @@ Ledger entry types: `SEASON_START` (starting cash), `BUY`, `SELL`, `DIVIDEND`, `
 ### 11.9 Benchmarks
 
 - **Nifty 50**: computed from index quotes in each fill snapshot; no ledger trades; marked like everyone else.
-- **Monkey**: each round, a mulberry32 PRNG seeded with the first 32 bits of `sha256(round_id + ":monkey")`. With probability ½ it does nothing. Otherwise one action: if it holds anything and a coin flip says sell, SELL a random holding, random quantity from 1 to all; else BUY a random tradeable symbol sized at a random 5–20% of total value at the decision snapshot's LTP, rounded down to whole shares. It goes through the same validator, fills and charges. The seed is stored in its decision record so the round replays exactly.
+- **Monkey**: each round, a mulberry32 PRNG seeded with the first 32 bits of `sha256(round_id + ":monkey")`. With probability ½ it does nothing. Otherwise one action: if it holds anything and a coin flip says sell, SELL a random holding, random quantity from 1 to all; else BUY a random tradeable symbol sized at a random 5–20% of total value at the decision snapshot's LTP, rounded down to whole shares. Intraday: it closes part of a random position (SELL a long, BUY back a short), or opens a random position whose side (long or short) is drawn last, so long-only rounds replay unchanged. It goes through the same validator, fills and charges. The seed is stored in its decision record so the round replays exactly.
 
 ---
 
@@ -549,6 +560,7 @@ Each tick:
 4. If the pre-market job hasn't run today and it's between 08:30 and 09:25 IST: run it (§12.4).
 5. Mark any slot whose grace window has passed without a round as `MISSED_SCHEDULE` (raises a warning incident).
 6. Find a due slot: scheduled time ≤ now < scheduled time + 20 minutes, with no round row yet. If found, run the round (§12.3).
+6b. Intraday: if it's between `intraday.squareOffFrom` and `schedule.endOfDayAfter` and anyone in the season has an open position, run the square-off (§12.3a). It also runs while the arena is paused, unless the pause is for a reconciliation mismatch.
 7. If it's after 15:40 IST and end of day hasn't run: run it (§12.5).
 8. If end of day has run, the day-end marks' reveal time has passed, and today's export hasn't run: export and anchor (§12.6). With ticks until 16:22 IST there are several chances; if all fail, the next trading day's pre-market job retries it.
 9. If any reveal time (a round's or the day-end marks') has passed since the last revalidation: call the web's revalidation endpoint.
@@ -570,6 +582,15 @@ Slots come from `arena.json` (default 09:30 … 15:00 every 30 minutes). A slot 
 8. Set status `COMPLETED` (or `PARTIAL` if anything above degraded), `finished_at`, and `reveal_at = finished_at + 15 minutes`. Every row from this round (decisions, actions, ledger entries, marks) shares this `reveal_at`, so the whole round becomes public at once.
 9. Raise alerts for anything abnormal (§17).
 
+### 12.3a The intraday square-off (since 2026-10-26)
+
+1. Load every participant with an open position; if there are none, do nothing.
+2. Insert a round with `kind = 'square_off'` and `slot_time` = the current IST minute (`ON CONFLICT DO NOTHING`; another run owns it otherwise). It counts towards no participant's uptime or accepted actions, and the site labels it "Square-off at HH:MM IST".
+3. Take a fill snapshot (all universe symbols plus the index). If login or the snapshot fails: `SKIPPED_DATA`, incident `squareoff:<date>` (warn; critical after the deadline), and the next tick tries again.
+4. For each participant with positions: an engine decision with status `SQUARE_OFF` and closing orders (SELL each long, BUY back each short, in symbol order), executed through the normal validator and charges with the limits on opening positions switched off. A symbol without a valid price stays open.
+5. Mark every participant at the snapshot. `COMPLETED` if nothing is left open, else `PARTIAL` with the open symbols and an incident. Finishing after the deadline raises `squareoff-late:<date>` (warn).
+6. End of day (§12.5) closes anything still open at the valuation snapshot (the day-end last traded price), labelled as such; if even that fails the position is held overnight with a critical incident, and the next square-off closes it.
+
 ### 12.4 Pre-market job (once per trading day, 08:30–09:25 IST)
 
 Download the instrument master and validate the universe mapping; append yesterday's daily bars and recompute indicators; apply corporate actions whose ex-date is today; check OpenRouter credit; check universe-rebalance and calendar-year reminders; retry a missed previous-day export; record the job in `daily_jobs`.
@@ -578,7 +599,7 @@ If the job hasn't succeeded by the first slot, rounds still run using the latest
 
 ### 12.5 End of day (once per trading day, after 15:40 IST)
 
-1. Valuation snapshot and day-end marks for everyone (`reveal_at` = marked time + 15 minutes).
+1. Valuation snapshot. Intraday: anything still open is closed at it (§12.3a step 6). Then day-end marks for everyone (`reveal_at` = marked time + 15 minutes).
 2. Reconciliation (§12.7).
 3. Daily digest alert: standings, incidents, spend, reconciliation result.
 
@@ -598,7 +619,7 @@ If a tick finds a round still `RUNNING` more than 15 minutes after it started, m
 
 ### 12.9 Seasons
 
-`pnpm admin start-season --id S1 --start YYYY-MM-DD --mode live` creates the season and its participants and writes `SEASON_START` entries at the first round. A season ends after its last trading day's end-of-day job; final standings are frozen and archived at `/seasons/<id>`. Shadow seasons (`mode: shadow`) never appear in live leaderboards; the site shows them only when `ARENA_MODE=shadow`, behind a banner and `noindex`.
+`pnpm admin start-season --id S1 --start YYYY-MM-DD --mode live` creates the season and its participants and writes `SEASON_START` entries at the first round. A season ends after its last trading day's end-of-day job; final standings are frozen and archived at `/seasons/<id>`. `pnpm admin end-season --id S0 --reason …` ends a season early: status `finished`, `ends_on` = its last trading day with rounds, `trading_days` = the days it held rounds; the ledger is untouched and its standings freeze at the last day-end marks. Shadow seasons (`mode: shadow`) never appear in live leaderboards; the site shows them only when `ARENA_MODE=shadow`, behind a banner and `noindex`.
 
 ---
 
@@ -638,6 +659,8 @@ Public messages come from `incidents.public_message`, written in the same plain 
 ---
 
 ## 14. Database schema
+
+Migration `0003_intraday_strategy.sql` (2026-10-26): `positions.quantity` may be negative (check `quantity <> 0` replaces `>= 0`), `ledger.position_after` may be negative, `rounds.kind text not null default 'trading' check (kind in ('trading','square_off'))`, `decisions.strategy text null`, `actions.exit_plan text null`; the public views gain `v_rounds.kind`, `v_decisions.strategy`, `v_actions.exit_plan` and `v_actions.position_after`, and `v_holdings` lists shorts too. The block below is the original schema.
 
 Write the Drizzle schema and migrations to match this. Money columns are `BIGINT` paise. Every table has `created_at timestamptz default now()`.
 
@@ -783,8 +806,9 @@ Desktop (≥ 1024 px, max width 1200 px, 12 columns): header; score bug full wid
 ### 16.3 Pages
 
 1. **`/` Arena.** Header with market-state chip, IST clock and countdown to the next round (computed client-side from the schedule in config, no DB call). Score bug ranked by total value (rank, short code chip, value, return since start). Portfolio value chart: all participants, ranges Today / 5D / Season, ₹ or % toggle, crosshair tooltip listing every participant sorted by value at that moment, end-of-line labels, benchmarks drawn quieter, "View as table" link. Latest revealed round: one row per participant with a verdict ("Bought 12 TCS", "Sold 30 ITC, bought 8 LT", "Held", "Missed round: provider timeout", "Unreadable answer", "Paused (budget)") and the first line of its reasoning; expand for full reasoning, fills, prices and charges. Standings table: rank with movement since yesterday, participant, value, return, today, vs Nifty, max drawdown, trades, status; sortable. Recent blunders: the last 10 model-fault rejections in plain words. Footer (§24). The Nifty 50 benchmark appears in the score bug, chart and standings but not in round panels (it makes no decisions); the Monkey appears everywhere, labelled "Monkey (random)".
+   **Strategy and reasons (the owner's request, 2026-10-26):** each model panel adds the model's latest stated strategy and the reason for its latest trade, and notes the intraday square-off time. The round panel shows the strategy, every action's why and exit plan. Trades read in plain words under net positions: Bought, Sold, Shorted, Bought back.
    **Model panels (the owner's request, 2026-10-25):** directly under the score bug, one panel per AI model: chip and name, rank, "Started with ₹1,00,000", "Worth now", profit or loss in rupees and percent (gain colour with ▲ and +, loss colour with ▼ and −), what it did in the latest revealed round with the first line of its reasoning, and its portfolio (each holding's shares, value and unrealised profit or loss, then cash), linking to its model page. Before the first round the panels show the line-up with "No trades yet" and all cash. Same delayed public views as the rest of the page.
-2. **`/models/[slug]`.** Chip, name, exact model ID, status. Key figures: value, return, vs Nifty, max drawdown, trades, clean answers, accepted actions, uptime, API spend. Chart of value against the Nifty benchmark. Holdings: quantity, average price, last price (delayed), value, weight bar, unrealised P&L, "Under review" badge where flagged. Allocation as a single stacked horizontal bar (not a donut). Tabs: Trades, Thinking (round by round: reasoning, actions with outcomes, note to self), Blunders, Report card (uptime strip of the last 60 rounds, latency, tokens, spend).
+2. **`/models/[slug]`.** Chip, name, exact model ID, status. Key figures: value, return, vs Nifty, max drawdown, trades, clean answers, accepted actions, uptime, API spend. Chart of value against the Nifty benchmark. Holdings: quantity, average price, last price (delayed), value, weight bar, unrealised P&L, "Under review" badge where flagged. Allocation as a single stacked horizontal bar (not a donut). Under intraday the section is "Open positions" (a short shows as negative with "short"; the allocation bar appears only without shorts). Tabs: Trades (with a **Why** column: the model's reason and exit plan for each fill, or "Square-off: the engine closed the position"), Thinking (round by round: strategy, analysis, actions with outcomes, reasons and exit plans, note to self), Blunders, Report card (uptime strip of the last 60 rounds, latency, tokens, spend).
 3. **`/rounds`** (by day, with status) and **`/rounds/[id]`.** Scheduled time, actual start, decision and fill snapshot times, status and reason. Every participant's move side by side. The shared system prompt; the shared market block (after close, per policy); each participant's private block. Fills with price source. Missed or skipped participants with reasons.
 4. **`/trades/[seq]`.** Side, symbol, quantity, fill price and its source, snapshot time, every charge line, cash before and after, position after, realised P&L, the model's "why", links to the round and decision. Ledger panel: `seq`, `prev_hash`, `hash`, previous and next entry links, and a **Check this trade** button that recomputes the hash in the browser and shows "This trade matches the public ledger" or exactly what didn't match.
 5. **`/verify`.** How the ledger and anchors work in plain words. Current head hash. Daily anchors with links to their git commits. Download a day's `ledger.jsonl`. "Check a whole day" runs the chain check in the browser and reports the result. Instructions for `pnpm verify-ledger --file`.
@@ -851,7 +875,7 @@ No gradient washes, glassmorphism or glow effects. No all-caps eyebrow labels ab
 
 ### 18.1 Admin commands (CLI and `admin.yml` workflow_dispatch)
 
-`pause --reason`, `resume`, `retire --slot --reason`, `corp-action --symbol --type --ratio|--amount --ex-date --source`, `clear-flag --symbol --reason`, `resolve-incident --id --note`, `start-season --id --start --mode`, `correct --ref-seq --reason …` (writes an adjusting ledger entry). Every admin command writes `admin_log`, which `/status` shows publicly. `admin.yml` exposes these as workflow inputs so the human can run them from the GitHub mobile app.
+`pause --reason`, `resume`, `retire --slot --reason`, `corp-action --symbol --type --ratio|--amount --ex-date --source`, `clear-flag --symbol --reason`, `resolve-incident --id --note`, `start-season --id --start --mode`, `end-season --id --reason` (since 2026-10-26), `correct --ref-seq --reason …` (writes an adjusting ledger entry). Every admin command writes `admin_log`, which `/status` shows publicly. `admin.yml` exposes these as workflow inputs so the human can run them from the GitHub mobile app.
 
 ### 18.2 Runbooks (in README)
 

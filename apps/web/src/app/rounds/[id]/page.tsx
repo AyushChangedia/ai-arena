@@ -2,7 +2,13 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cacheLife, cacheTag } from 'next/cache';
-import { formatInr, formatTimeIst, formatTradingDate, formatUsd } from '@arena/shared/format';
+import {
+  formatInr,
+  formatTimeIst,
+  formatTradingDate,
+  formatUsd,
+  tradeVerb,
+} from '@arena/shared/format';
 import { loadRound, loadArena } from '@/lib/data';
 import { holidayDates } from '@/lib/holidays';
 import { roundNumber } from '@/lib/schedule';
@@ -50,9 +56,17 @@ async function RoundPage({ id }: { id: string }) {
     >
       <div className="py-6">
         <h1 className="condensed text-2xl font-bold">
-          Round {roundNumber(round.slotTime)} at {round.slotTime} IST,{' '}
+          {round.kind === 'square_off'
+            ? `Square-off at ${round.slotTime} IST, `
+            : `Round ${roundNumber(round.slotTime)} at ${round.slotTime} IST, `}
           {formatTradingDate(round.tradingDate)}
         </h1>
+        {round.kind === 'square_off' ? (
+          <p className="prose-measure mt-2 text-sm text-text-2">
+            Intraday rule: the engine closed every open position (longs sold at the best bid, shorts
+            bought back at the best ask, normal costs). The models did not choose these trades.
+          </p>
+        ) : null}
         <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
           <div>
             <dt className="text-text-2">Scheduled</dt>
@@ -102,6 +116,12 @@ async function RoundPage({ id }: { id: string }) {
                   </header>
                   {d ? (
                     <div className="mt-2 space-y-2 text-sm">
+                      {d.strategy ? (
+                        <p className="model-text">
+                          <span className="font-semibold not-italic text-text">Strategy: </span>
+                          {d.strategy}
+                        </p>
+                      ) : null}
                       {d.reasoning ? (
                         <details>
                           <summary className="min-h-11 cursor-pointer text-text-2">
@@ -115,7 +135,13 @@ async function RoundPage({ id }: { id: string }) {
                           {d.actions.map((x) => (
                             <li key={x.id}>
                               <span className="num">
-                                {x.side ?? x.sideRaw ?? '?'}{' '}
+                                {x.status === 'executed' && x.side && x.quantity !== null
+                                  ? tradeVerb(
+                                      x.side === 'BUY' ? 'BUY' : 'SELL',
+                                      x.quantity,
+                                      x.positionAfter,
+                                    )
+                                  : (x.side ?? x.sideRaw ?? '?')}{' '}
                                 {x.quantity ?? String(x.quantityRaw ?? '?')}{' '}
                                 {x.symbol ?? x.symbolRaw ?? '?'}
                               </span>
@@ -148,6 +174,13 @@ async function RoundPage({ id }: { id: string }) {
                               {x.why ? (
                                 <span className="model-text block text-text-2">
                                   Why: {x.why.slice(0, arena.display.whyDisplayChars)}
+                                </span>
+                              ) : null}
+                              {x.exitPlan ? (
+                                <span className="model-text block text-text-2">
+                                  Exit plan:{' '}
+                                  {x.exitPlan.slice(0, arena.display.exitPlanDisplayChars)}{' '}
+                                  <span className="not-italic">(published, never acted on)</span>
                                 </span>
                               ) : null}
                             </li>

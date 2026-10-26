@@ -5,6 +5,7 @@
 import { tmpdir } from 'node:os';
 import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pino from 'pino';
 import type pg from 'pg';
 import { createPool } from '@arena/db';
@@ -241,12 +242,21 @@ export interface World {
   setLlm: (b: ModelBehaviour) => void;
 }
 
+/** S0's long-only delivery rules, kept as a fixture so the delivery code paths stay tested. */
+const DELIVERY_CONFIG = fileURLToPath(new URL('../fixtures/delivery', import.meta.url));
+export type TestProduct = 'delivery' | 'intraday';
+
 /**
- * The committed arena config with a fixed 12-round, 30-minute schedule, so the round tests
- * don't depend on the schedule a season happens to use.
+ * A fixed 30-minute schedule, so the round tests don't depend on the schedule a season happens to
+ * use. Delivery: S0's rules, 12 rounds 09:30–15:00. Intraday: the committed rules, 11 rounds
+ * 09:30–14:30, square-off from 15:00 (by 15:15).
  */
-export function testArena() {
-  const a = must(loadArena());
+export function testArena(product: TestProduct = 'delivery') {
+  if (product === 'intraday') {
+    const a = must(loadArena());
+    return { ...a, schedule: { ...a.schedule, everyMinutes: 30, lastSlot: '14:30' } };
+  }
+  const a = must(loadArena(DELIVERY_CONFIG));
   return { ...a, schedule: { ...a.schedule, everyMinutes: 30, lastSlot: '15:00' } };
 }
 
@@ -255,6 +265,7 @@ export function makeWorld(
   start: Date,
   behaviour: ModelBehaviour,
   models = testModels(),
+  product: TestProduct = 'delivery',
 ): World {
   const db = createPool(engineUrl);
   const clock = { t: start };
@@ -274,8 +285,8 @@ export function makeWorld(
       world.llmBodies = llm.bodies;
     },
     deps: {
-      arena: testArena(),
-      fees: must(loadFees()),
+      arena: testArena(product),
+      fees: must(loadFees(product === 'delivery' ? DELIVERY_CONFIG : undefined)),
       universe: TEST_UNIVERSE,
       calendar: CALENDAR,
       models,

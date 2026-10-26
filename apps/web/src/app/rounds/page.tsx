@@ -72,7 +72,9 @@ async function Rounds() {
                       className="flex min-h-11 items-center justify-between gap-3 py-1"
                     >
                       <span className="num">
-                        Round {roundNumber(x.slotTime)} at {x.slotTime} IST
+                        {x.kind === 'square_off'
+                          ? `Square-off at ${x.slotTime} IST`
+                          : `Round ${roundNumber(x.slotTime)} at ${x.slotTime} IST`}
                       </span>
                       <span
                         className={`text-sm ${x.status === 'COMPLETED' ? 'text-text-2' : 'text-accent'}`}

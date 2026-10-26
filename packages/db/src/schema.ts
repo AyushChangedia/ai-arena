@@ -164,6 +164,8 @@ export const rounds = pgTable('rounds', {
   fillSnapshotId: uuid('fill_snapshot_id'),
   marketBlock: text('market_block'),
   trigger: text('trigger').notNull(),
+  /** 'trading' or 'square_off' (intraday: closes every open position). */
+  kind: text('kind').notNull().default('trading'),
   createdAt: createdAt(),
 });
 
@@ -181,6 +183,8 @@ export const decisions = pgTable('decisions', {
   parsed: jsonb('parsed'),
   reasoning: text('reasoning'),
   noteToSelf: text('note_to_self'),
+  /** The model's stated approach (published). */
+  strategy: text('strategy'),
   flags: text('flags').array().notNull(),
   servingModel: text('serving_model'),
   attempts: integer('attempts').notNull(),
@@ -210,6 +214,8 @@ export const actions = pgTable('actions', {
   rejectCode: text('reject_code'),
   rejectDetail: text('reject_detail'),
   modelFault: boolean('model_fault').notNull(),
+  /** The model's stated exit for this action (published, never acted on). */
+  exitPlan: text('exit_plan'),
   createdAt: createdAt(),
 });
 

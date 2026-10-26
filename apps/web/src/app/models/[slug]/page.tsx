@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { cacheLife, cacheTag } from 'next/cache';
-import { formatInr, formatUsd, formatInt } from '@arena/shared/format';
+import { formatInr, formatUsd, formatInt, tradeVerb } from '@arena/shared/format';
 import { loadModel } from '@/lib/data';
 import { holidayDates } from '@/lib/holidays';
 import { chartSeries } from '@/lib/arena-view';
@@ -12,7 +12,8 @@ import { arena } from '@/lib/config';
 import { PageShell, PageFallback } from '@/components/page-shell';
 import { Unreachable } from '@/components/banners';
 import { Chip } from '@/components/chip';
-import { Money, Pct, Pts, Ratio, Missing } from '@/components/num';
+import { Money, Pct, Pts, Ratio, Missing, Pnl } from '@/components/num';
+import { TradeReason } from '@/components/trade-reason';
 import { PortfolioChart } from '@/components/portfolio-chart';
 import { AllocationBar } from '@/components/allocation-bar';
 import { StatusStrip } from '@/components/status-strip';
@@ -99,8 +100,8 @@ async function ModelPage({ slug }: { slug: string }) {
       aria-label="Scrollable table"
     >
       {trades.length ? (
-        <table className="w-full min-w-[560px] border-collapse text-sm">
-          <caption className="sr-only">Trades by {name}</caption>
+        <table className="w-full min-w-[760px] border-collapse text-sm">
+          <caption className="sr-only">Trades by {name}, with the reason for each</caption>
           <thead>
             <tr className="border-b border-line text-text-2">
               <th scope="col" className="px-2 py-1 text-left font-normal">
@@ -120,6 +121,9 @@ async function ModelPage({ slug }: { slug: string }) {
               </th>
               <th scope="col" className="px-2 py-1 text-right font-normal">
                 Realised P&amp;L
+              </th>
+              <th scope="col" className="px-2 py-1 text-left font-normal">
+                Why
               </th>
             </tr>
           </thead>
@@ -145,7 +149,10 @@ async function ModelPage({ slug }: { slug: string }) {
                   IST
                 </td>
                 <td className="px-2 py-1">
-                  {t.side === 'BUY' ? 'Bought' : 'Sold'} {t.quantity} {t.symbol}
+                  {t.side && t.quantity !== null
+                    ? tradeVerb(t.side, t.quantity, t.positionAfter)
+                    : t.entryType}{' '}
+                  {t.quantity} {t.symbol}
                 </td>
                 <td className="num px-2 py-1 text-right">
                   {t.pricePaise === null ? '—' : formatInr(t.pricePaise)}
@@ -153,10 +160,13 @@ async function ModelPage({ slug }: { slug: string }) {
                 <td className="num px-2 py-1 text-right">{formatInr(t.chargesTotalPaise)}</td>
                 <td className="num px-2 py-1 text-right">
                   {t.realizedPnlPaise === null ? (
-                    <Missing reason="Only sells realise P&L" />
+                    <Missing reason="Only a trade that closes a position realises P&L" />
                   ) : (
-                    formatInr(t.realizedPnlPaise)
+                    <Pnl paise={t.realizedPnlPaise} />
                   )}
+                </td>
+                <td className="max-w-[28rem] px-2 py-1 align-top">
+                  <TradeReason reason={t.reason} />
                 </td>
               </tr>
             ))}
@@ -178,8 +188,19 @@ async function ModelPage({ slug }: { slug: string }) {
             </Link>
             <span className="ml-2 text-text">{verdict(d.status, d.actions)}</span>
           </p>
+          {d.strategy ? (
+            <p className="model-text prose-measure mt-1 text-sm">
+              <span className="font-semibold not-italic text-text">Strategy: </span>
+              {d.strategy.slice(0, arena.display.strategyDisplayChars)}
+            </p>
+          ) : d.status === 'OK' && p.kind === 'model' ? (
+            <p className="mt-1 text-sm text-text-2">No strategy given this round.</p>
+          ) : null}
           {d.reasoning ? (
             <p className="model-text prose-measure mt-1 text-sm">
+              {d.strategy ? (
+                <span className="font-semibold not-italic text-text">Analysis: </span>
+              ) : null}
               {d.reasoning.slice(0, arena.display.reasoningDisplayChars)}
             </p>
           ) : null}
@@ -196,6 +217,11 @@ async function ModelPage({ slug }: { slug: string }) {
                     <span className="model-text text-text-2">
                       {' '}
                       “{x.why.slice(0, arena.display.whyDisplayChars)}”
+                    </span>
+                  ) : null}
+                  {x.exitPlan ? (
+                    <span className="model-text block text-text-2">
+                      Exit plan: {x.exitPlan.slice(0, arena.display.exitPlanDisplayChars)}
                     </span>
                   ) : null}
                 </li>
@@ -398,7 +424,7 @@ async function ModelPage({ slug }: { slug: string }) {
           className="mt-6 rounded-[var(--radius-panel)] bg-surface p-4"
         >
           <h2 id="holdings-h" className="condensed mb-2 text-lg font-semibold">
-            Holdings
+            {arena.product === 'intraday_long_short' ? 'Open positions' : 'Holdings'}
           </h2>
           {holdingRows.length ? (
             <>
@@ -453,7 +479,12 @@ async function ModelPage({ slug }: { slug: string }) {
                               </span>
                             ) : null}
                           </th>
-                          <td className="num px-2 py-1 text-right">{formatInt(h.quantity)}</td>
+                          <td className="num px-2 py-1 text-right">
+                            {formatInt(h.quantity)}
+                            {h.quantity < 0 ? (
+                              <span className="ml-1 text-xs text-text-2">short</span>
+                            ) : null}
+                          </td>
                           <td className="num px-2 py-1 text-right">{formatInr(h.avgCostPaise)}</td>
                           <td className="num px-2 py-1 text-right">
                             <Money paise={h.lastPricePaise} missing="No price this round" />
@@ -470,8 +501,9 @@ async function ModelPage({ slug }: { slug: string }) {
                                   <span
                                     className="block h-2 rounded"
                                     style={{
-                                      width: `${Math.min(100, w * 100)}%`,
+                                      width: `${Math.min(100, Math.abs(w) * 100)}%`,
                                       background: p.color,
+                                      opacity: w < 0 ? 0.5 : 1,
                                     }}
                                   />
                                 </span>
@@ -480,7 +512,7 @@ async function ModelPage({ slug }: { slug: string }) {
                             )}
                           </td>
                           <td className="num px-2 py-1 text-right">
-                            <Money paise={h.pnl} missing="No price this round" />
+                            <Pnl paise={h.pnl} missing="No price this round" />
                           </td>
                         </tr>
                       );
@@ -488,7 +520,7 @@ async function ModelPage({ slug }: { slug: string }) {
                   </tbody>
                 </table>
               </div>
-              {latestMark ? (
+              {latestMark && holdingRows.every((h) => h.quantity > 0) ? (
                 <div className="mt-4">
                   <h3 className="mb-2 text-sm text-text-2">Allocation</h3>
                   <AllocationBar
@@ -505,7 +537,9 @@ async function ModelPage({ slug }: { slug: string }) {
             </>
           ) : (
             <p className="text-sm text-text-2">
-              No holdings: all cash
+              {arena.product === 'intraday_long_short'
+                ? 'No open positions: all cash'
+                : 'No holdings: all cash'}
               {latestMark ? (
                 <>
                   {' '}

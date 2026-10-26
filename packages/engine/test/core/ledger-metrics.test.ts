@@ -164,7 +164,7 @@ describe('metrics (SPEC §11.8)', () => {
     expect(maxDrawdown([100n, 110n])).toBe(0);
     expect(maxDrawdown([0n, 0n])).toBe(0);
   });
-  it('trade stats and win rate after 5 sells', () => {
+  it('trade stats and win rate after 5 closing fills', () => {
     const sells = (pnls: bigint[]) =>
       pnls.map((p) => ({
         side: 'SELL' as const,
@@ -179,6 +179,15 @@ describe('metrics (SPEC §11.8)', () => {
       ]),
     ).toMatchObject({ trades: 5, turnoverPaise: 900n, chargesPaise: 6n, winRate: null });
     expect(tradeStats(sells([1n, -1n, 1n, 0n, 5n])).winRate).toBeCloseTo(0.6);
+    // Intraday: a BUY that covers a short is a closing fill too.
+    const cover = { side: 'BUY' as const, grossPaise: 100n, chargesTotalPaise: 1n };
+    expect(
+      tradeStats([
+        ...sells([1n, -1n, 1n, 0n]),
+        { ...cover, realizedPnlPaise: 7n },
+        { ...cover, realizedPnlPaise: null },
+      ]),
+    ).toMatchObject({ closes: 5, winRate: 0.6 });
   });
   it('rates', () => {
     const c = { ok: 8, invalid: 2, roundsHeld: 12, executed: 9, modelFaultRejections: 3 };

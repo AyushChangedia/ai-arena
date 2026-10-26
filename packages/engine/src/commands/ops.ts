@@ -237,6 +237,9 @@ export async function adminCommand(args: ParsedArgs): Promise<number> {
       case 'resolve-incident':
         msg = await admin.resolveIncidentById(db, flagRequired(args, 'id'), reason, who);
         break;
+      case 'end-season':
+        msg = await admin.endSeason(db, flagRequired(args, 'id'), reason, who);
+        break;
       case 'correct': {
         const pos = flagString(args, 'position');
         const avg = flagString(args, 'avg-cost');
@@ -256,7 +259,7 @@ export async function adminCommand(args: ParsedArgs): Promise<number> {
       }
       default:
         process.stderr.write(
-          'Usage: pnpm admin <pause|resume|retire|corp-action|clear-flag|resolve-incident|start-season|correct> [--flags]\n',
+          'Usage: pnpm admin <pause|resume|retire|corp-action|clear-flag|resolve-incident|start-season|end-season|correct> [--flags]\n',
         );
         return 2;
     }

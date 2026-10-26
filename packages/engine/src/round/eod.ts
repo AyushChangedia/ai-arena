@@ -3,13 +3,15 @@ import { formatInr } from '@arena/shared/format';
 import { snapshotFor, mappingFromDb } from '../data/market';
 import { persistSnapshot } from '../data/snapshot';
 import { pricesWithFallback } from './context';
-import { writeMarks } from './runner';
+import { writeMarks, runSquareOff, type RoundSummary } from './runner';
 import { reconcileAndAct, type ReconcileResult } from './reconcile';
 import { participants as loadParticipants, heldSymbols, type SeasonRow } from './store';
 import type { Deps } from './deps';
 
 export interface EodResult {
   snapshot: string;
+  /** Intraday product: positions still open at end of day are closed at the valuation snapshot. */
+  squareOff: RoundSummary | null;
   reconcile: ReconcileResult;
   seasonFinished: boolean;
 }
@@ -30,6 +32,9 @@ export async function runEndOfDay(d: Deps, season: SeasonRow, date: string): Pro
     checkFreshness: false,
   });
   await persistSnapshot(d.db, snap);
+  let squareOff: RoundSummary | null = null;
+  if (d.arena.product === 'intraday_long_short' && held.length)
+    squareOff = await runSquareOff(d, season, date, 'cron', { snapshot: snap });
   const parts = await loadParticipants(d.db, season.id);
   const symbols = [...new Set([...d.universe.constituents.map((c) => c.symbol), ...held])];
   const valuation = await pricesWithFallback(d.db, snap, symbols);
@@ -64,5 +69,5 @@ export async function runEndOfDay(d: Deps, season: SeasonRow, date: string): Pro
     await d.db.query("UPDATE seasons SET status = 'finished' WHERE id = $1", [season.id]);
     seasonFinished = true;
   }
-  return { snapshot: snap.id, reconcile: rec, seasonFinished };
+  return { snapshot: snap.id, squareOff, reconcile: rec, seasonFinished };
 }
