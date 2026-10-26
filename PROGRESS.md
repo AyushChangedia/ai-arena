@@ -69,12 +69,22 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 
 ## In progress
 
-Nothing in code. The intraday switch (below) waits for the owner's "merge", then the migration and the season switch.
+Nothing. Practice season P1 (intraday rules) starts Tuesday 27 Oct 2026 at 09:30 IST.
 
 ## Blocked on the human
 
-- **Intraday switch (2026-10-26):** merge the PR, then, in order: run `migrate.yml` (applies `0003_intraday_strategy.sql`), run `admin.yml` → `end-season` with id `S0`, then `admin.yml` → `start-season` with id `P1`, start `2026-10-27`, mode `shadow` (SETUP.md step 23a). All three must finish before 09:30 IST on the first P1 day. Until the migration runs, a tick with the new code fails (missing columns).
-- Otherwise see SETUP.md (numbered steps, in order). Nothing here blocks the build.
+See SETUP.md (numbered steps, in order). Nothing here blocks the build.
+
+**Owner decision, 2026-10-26: "never ask for merge".** Claude sessions merge their own PRs once CI passes, and say what they merged.
+
+## Intraday switch, done 2026-10-26 (19:08–19:10 IST)
+
+- PR #10 merged (merge commit `14a96f3`).
+- `migrate.yml` run 5 → "migrations applied: 0003_intraday_strategy.sql; already applied: 2"; role passwords re-set.
+- `admin.yml` run 2, `end-season S0` → "Season S0 finished early after 1 trading day(s), on 2026-10-26. Its standings are frozen at that day's marks."
+- `admin.yml` run 3, `start-season P1 --start 2026-10-27 --mode shadow` → "Season P1 (shadow) scheduled: 2026-10-27 to 2026-11-25, 20 trading days."
+- Not verified: the live site showing P1. vercel.app is blocked from the build environment, and the Vercel connector returned 403. Cached pages refresh within an hour (`cacheLife('arena')`, revalidate 3600 s).
+- The evening check-in (16:35 IST, weekdays) now covers the square-off and the models' strategies, and merges its own notes PR.
 
 ## Not verified / known gaps
 
@@ -204,7 +214,7 @@ Nothing in code. The intraday switch (below) waits for the owner's "merge", then
 
 ## Next
 
-0. Intraday switch: the owner says "merge"; then migrate, `end-season S0`, `start-season P1 --start 2026-10-27 --mode shadow` (SETUP.md step 23a). After the first P1 day, record the square-off and the models' strategy answers here.
+0. After P1's first day (27 Oct), record the square-off (about 15:02 IST) and the models' strategy answers here.
 
 1. The owner finishes the steps that need his secrets and accounts, in this order: SETUP.md step 5 (role passwords → `DATABASE_URL` secret, `DATABASE_URL_READONLY` in Vercel), 6 (Angel One), 7 (OpenRouter), 16 (`REVALIDATE_SECRET` in Vercel and GitHub), then a Vercel redeploy, smoke runs 12–15, optional alerts (20), enabling tick and keepalive (22) and starting S0 (23).
 2. The owner picks the DP charge (₹15.93 as now, or Zerodha's ₹15.34), then a session updates `config/fees.json` and the golden tests together and sets `verifiedOn`.
