@@ -92,6 +92,23 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
   Not verified against the live models until the next round or a `decide-all` run. Raising `max_tokens` could hit a provider's output limit; if a model then starts failing with HTTP 400 or 404, lower it.
 
+- **Shadow days for SETUP.md Part F (3 needed): 1 of 3 recorded.**
+  - **Day 1, Mon 26 Oct 2026.** Every slot was completed or explained, and reconciliation was ok.
+    - 09:30: MISSED_SCHEDULE. No tick ran until a manual dispatch at 10:07; see below.
+    - 11:00, 12:30, 14:00: completed (manual dispatches).
+    - End of day: 15:42, by the cron-job.org timer, reconciliation ok.
+    - Export and anchor: committed at 16:02 (`data: 2026-10-26`). 8 ledger entries, head `e036a652…`. Both `pnpm verify-ledger --file` and the README's Python script verify the chain and match the anchor.
+  - Closing values:
+    - Nemotron ₹1,00,417.03 (bought 20 RELIANCE, 35 HDFCBANK and 20 INFY at 11:00).
+    - Nifty 50 benchmark ₹1,00,726.90.
+    - Gemma, Xing, Flint and the Monkey ₹1,00,000 (no trades).
+  - Model health:
+    - Nemotron: OK in every round.
+    - Gemma: HTTP 429 in every round, even with the longer retries from 14:00 on.
+    - Xing: 429 at 11:00 and 12:30; OK at 14:00 (BUY rejected, CONCENTRATION_LIMIT).
+    - Flint: empty replies at 11:00 and 12:30; OK at 14:00 after the 8,000-token fix.
+  - The pre-market job didn't run, so there were no daily-bar indicators in prompts.
+  - Since 15:12 IST the cron-job.org timer starts `tick.yml` every 10 minutes (SETUP.md step 22); runs at 15:12–16:22 IST had no gaps.
 - **2026-10-26, day 1 of shadow season S0: no scheduled tick ran.** `tick.yml` was active but had zero runs ever, so the 09:30 round was missed.
   - A manual `workflow_dispatch` tick at 10:07 IST ran fine and recorded the 09:30 slot as MISSED_SCHEDULE. The pre-market job (08:30–09:25) didn't run, so today's prompts have no daily-bar indicators.
   - Fix: the cron is rewritten as an explicit minute list (`2,12,22,32,42,52 3-10 * * 1-5`), and the push of the workflow file also re-registers the schedule with GitHub.

@@ -269,6 +269,24 @@ Optional: variable **`DATA_BRANCH`** if you want the end-of-day export committed
 
 **Actions** → **tick** → if you see "This scheduled workflow is disabled", click **Enable workflow**. Do the same for **keepalive**. Then run **tick** once by hand with **dry** ticked: expect a green run whose summary says what would run now.
 
+**The timer that actually starts the engine (cron-job.org).** GitHub's own schedule for `tick.yml` never fired on this repo (2026-10-26), so a free external timer starts it instead (SPEC §18.4):
+
+1. **GitHub token:** https://github.com/settings/personal-access-tokens/new.
+   - Name `ai-arena-tick-timer`, expiration 1 year (note the date).
+   - **Only select repositories → ai-arena**.
+   - In the **Repositories** permissions box, add **Actions: Read and write**. Leave the Account box empty.
+   - Generate it and copy it once.
+2. **cron-job.org** (free account) → **Create cronjob**:
+   - URL `https://api.github.com/repos/AyushChangedia/ai-arena/actions/workflows/tick.yml/dispatches`.
+   - Custom schedule, crontab `2,12,22,32,42,52 3-10 * * 1-5` in **UTC** (08:32–16:22 IST, weekdays).
+   - **Advanced:** method `POST`; body `{"ref":"main"}`; headers:
+     - `Accept: application/vnd.github+json`
+     - `Authorization: Bearer <token>`
+     - `X-GitHub-Api-Version: 2022-11-28`
+     - `Content-Type: application/json`
+3. **Test run** must answer **204**, then **Create**. GitHub → Actions → tick shows a new run within a minute.
+4. **Before the token expires**, make a new one the same way and paste it into the cronjob's `Authorization` header. When it expires the timer gets 401s, no rounds run, and cron-job.org emails you about the failures.
+
 ### 23. Start the shadow season
 
 Run the workflow **admin** with:
