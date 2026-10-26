@@ -2,7 +2,11 @@
   "$comment": "Arena rules (SPEC §3). The engine enforces these and /rules renders them. Edit here, never in code.",
   "timezone": "Asia/Kolkata",
   "startingCashPaise": "10000000",
-  "product": "long_only_delivery",
+  "product": "intraday_long_short",
+  "intraday": {
+    "squareOffFrom": "15:00",
+    "squareOffDeadline": "15:15"
+  },
   "schedule": {
     "firstSlot": "09:30",
     "lastSlot": "14:00",
@@ -24,7 +28,8 @@
     "maxInvalidQuotesPerSnapshot": 5,
     "maxQuoteAgeMinutes": 5,
     "maxDailyMovePct": 20,
-    "gapGuardPct": 15
+    "gapGuardPct": 15,
+    "maxGrossExposurePct": 100
   },
   "season": {
     "tradingDays": 20,
@@ -63,12 +68,16 @@
   },
   "display": {
     "reasoningDisplayChars": 1200,
-    "whyDisplayChars": 200,
+    "whyDisplayChars": 400,
+    "strategyDisplayChars": 600,
+    "exitPlanDisplayChars": 200,
     "noteToSelfMaxChars": 500
   },
   "simplifications": [
-    "Cash from a sale can be used again in the same round. Real delivery trades settle a day later.",
-    "Cash dividends are credited on the ex-date for shares held at the previous close.",
+    "Cash from a sale or a short sale can be used again in the same round. A real broker blocks margin for intraday positions instead.",
+    "Short selling needs no stock borrowing and has no margin call: the 100% exposure limit and the daily square-off stand in for a broker's margin rules.",
+    "If a stock has no live price at square-off, the engine keeps trying on each tick; anything still open at end of day is closed at the day-end last traded price.",
+    "Cash dividends and other corporate actions don't arise: every position is closed before the market shuts, so nothing is held overnight.",
     "Each charge is rounded to the nearest paisa per order. Real contract notes round some charges, such as STT, to the rupee, so a real broker's costs can differ by about a rupee per order.",
     "Orders fill in full at the best bid or ask in the fill snapshot. Real orders can move the price or fill in parts."
   ]

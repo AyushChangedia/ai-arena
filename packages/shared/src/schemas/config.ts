@@ -10,7 +10,18 @@ export const arenaConfigSchema = z
     $comment: z.string().optional(),
     timezone: z.literal('Asia/Kolkata'),
     startingCashPaise: intString,
-    product: z.literal('long_only_delivery'),
+    /** long_only_delivery: buy and hold. intraday_long_short (the owner's choice, 2026-10-26): long and short, every position closed by the square-off deadline. */
+    product: z.enum(['long_only_delivery', 'intraday_long_short']),
+    /** Required for the intraday product: when the engine closes every open position. */
+    intraday: z
+      .object({
+        /** The square-off starts at the first tick at or after this time. */
+        squareOffFrom: hhmm,
+        /** Every position should be closed by this time; a later close raises an incident. */
+        squareOffDeadline: hhmm,
+      })
+      .strict()
+      .optional(),
     schedule: z
       .object({
         firstSlot: hhmm,
@@ -33,6 +44,8 @@ export const arenaConfigSchema = z
         maxQuoteAgeMinutes: z.number().int().min(1),
         maxDailyMovePct: z.number().int().min(1),
         gapGuardPct: z.number().int().min(1),
+        /** Longs plus shorts at market value may not exceed this share of total value. 100 = no leverage. */
+        maxGrossExposurePct: z.number().int().min(1).max(100).default(100),
       })
       .strict(),
     season: z
@@ -85,16 +98,66 @@ export const arenaConfigSchema = z
       .object({
         reasoningDisplayChars: z.number().int().min(1),
         whyDisplayChars: z.number().int().min(1),
+        /** The model's stated strategy, shown on its panel and the Thinking tab. */
+        strategyDisplayChars: z.number().int().min(1).default(600),
+        /** The exit plan for each action. */
+        exitPlanDisplayChars: z.number().int().min(1).default(200),
         noteToSelfMaxChars: z.number().int().min(1),
       })
       .strict(),
     simplifications: z.array(z.string().min(1)),
   })
-  .strict();
+  .strict()
+  .superRefine((a, ctx) => {
+    const min = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+    if (a.product === 'intraday_long_short' && !a.intraday) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['intraday'],
+        message: 'the intraday product needs an intraday block (squareOffFrom, squareOffDeadline)',
+      });
+      return;
+    }
+    if (a.product === 'long_only_delivery' && a.intraday) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['intraday'],
+        message: 'an intraday block only applies to the intraday product',
+      });
+      return;
+    }
+    if (!a.intraday) return;
+    const from = min(a.intraday.squareOffFrom);
+    const deadline = min(a.intraday.squareOffDeadline);
+    if (deadline <= from)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['intraday', 'squareOffDeadline'],
+        message: 'the square-off deadline must be after squareOffFrom',
+      });
+    if (min(a.schedule.lastSlot) + a.schedule.graceMinutes > from)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['intraday', 'squareOffFrom'],
+        message: 'the last round (plus its grace window) must end before the square-off starts',
+      });
+    if (deadline > min(a.schedule.endOfDayAfter))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['intraday', 'squareOffDeadline'],
+        message: 'the square-off deadline must be before end of day',
+      });
+  });
 export type ArenaConfig = z.infer<typeof arenaConfigSchema>;
 
 const chargeSchema = z
-  .object({ rate: fraction, appliesTo: z.enum(['buy', 'sell', 'both']), label: z.string() })
+  .object({
+    rate: fraction,
+    /** A flat amount per executed order, added to the rate (brokerage: ₹20 an order, the owner's choice). */
+    flatPaisePerOrder: intString.optional(),
+    appliesTo: z.enum(['buy', 'sell', 'both']),
+    label: z.string(),
+  })
   .strict();
 
 export const feesConfigSchema = z
@@ -120,9 +183,11 @@ export const feesConfigSchema = z
         label: z.string(),
       })
       .strict(),
+    /** Delivery only; null for intraday (no shares leave the demat account). */
     dpCharge: z
       .object({ paisePerSymbolPerDay: intString, label: z.string(), note: z.string() })
-      .strict(),
+      .strict()
+      .nullable(),
     sources: z.array(z.object({ label: z.string(), url: z.string().url() }).strict()).min(1),
   })
   .strict();

@@ -184,7 +184,7 @@ export async function historyFor(
       continue;
     }
     const st = r.dstatus as DecisionStatus;
-    if (st !== 'OK') {
+    if (st !== 'OK' && st !== 'SQUARE_OFF') {
       lines.push(historyLine(when, HISTORY_TEXT[st] ?? st.toLowerCase(), []));
       continue;
     }
@@ -203,7 +203,7 @@ export async function historyFor(
       symbolRaw: x.symbol_raw,
       pricePaise: x.price_paise === null ? null : BigInt(x.price_paise),
     }));
-    lines.push(historyLine(when, null, acts));
+    lines.push(historyLine(st === 'SQUARE_OFF' ? `${when} square-off` : when, null, acts));
   }
   return lines;
 }
@@ -230,14 +230,17 @@ export interface PrivateBlockInput {
   prices: Map<string, bigint>;
   history: string[];
   noteToSelf: string | null;
+  /** Intraday product: the square-off time and the exposure limit, for the prompt. */
+  squareOffAt?: string | null;
+  maxGrossExposurePct?: number;
 }
 
 export function buildPrivateBlock(p: PrivateBlockInput): string {
   const holdings: HoldingRow[] = [...p.portfolio.positions.entries()]
-    .filter(([, pos]) => pos.quantity > 0)
+    .filter(([, pos]) => pos.quantity !== 0)
     .map(([symbol, pos]) => {
       const last = p.prices.get(symbol);
-      // Every held stock was bought at a recorded fill price, so a price always exists; never guess one.
+      // Every position was opened at a recorded fill price, so a price always exists; never guess one.
       if (last === undefined) throw new Error(`no recorded price for held symbol ${symbol}`);
       return {
         symbol,
@@ -260,5 +263,7 @@ export function buildPrivateBlock(p: PrivateBlockInput): string {
     holdings,
     history: p.history,
     noteToSelf: p.noteToSelf,
+    squareOffAt: p.squareOffAt ?? null,
+    maxGrossExposurePct: p.maxGrossExposurePct ?? 100,
   });
 }

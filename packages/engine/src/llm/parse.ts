@@ -1,6 +1,8 @@
 /** Reading a model's answer (SPEC §9.3). Store the raw content regardless of the outcome. */
 
 export interface ParsedDecision {
+  /** The model's stated approach; '' (flagged missing_strategy) if absent. */
+  strategy: string;
   reasoning: string;
   actions: unknown[];
   noteToSelf: string;
@@ -75,6 +77,9 @@ export function parseDecisionContent(
   const o = value as Record<string, unknown>;
   if (!Array.isArray(o.actions)) return { ok: false, error: 'the object has no "actions" array' };
   const flags: string[] = [];
+  let strategy = '';
+  if (typeof o.strategy === 'string') strategy = o.strategy;
+  else flags.push('missing_strategy');
   let reasoning = '';
   if (typeof o.reasoning === 'string') reasoning = o.reasoning;
   else flags.push('missing_reasoning');
@@ -85,5 +90,8 @@ export function parseDecisionContent(
     noteToSelf = [...noteToSelf].slice(0, opts.noteMaxChars).join('');
     flags.push('note_truncated');
   }
-  return { ok: true, decision: { reasoning, actions: o.actions, noteToSelf, flags, method } };
+  return {
+    ok: true,
+    decision: { strategy, reasoning, actions: o.actions, noteToSelf, flags, method },
+  };
 }

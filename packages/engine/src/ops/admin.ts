@@ -231,6 +231,47 @@ export async function startSeason(
   return `Season ${a.id} (${a.mode}) scheduled: ${a.start} to ${days.at(-1)}, ${tradingDays} trading days. SEASON_START entries are written at the first round.`;
 }
 
+/**
+ * Ends a season early (SPEC §12.9; added when the owner changed the rules mid-season, 2026-10-26).
+ * Its standings freeze at the last day-end marks; nothing in the ledger changes. The season's length
+ * becomes the trading days it actually held rounds on.
+ */
+export async function endSeason(db: pg.Pool, id: string, reason: string, who: string) {
+  if (!reason.trim())
+    throw new ConfigError('end-season needs --reason.', 'Say why the season ends early.');
+  let summary = '';
+  await withTransaction(db, async (tx) => {
+    const s = await tx.query<{ status: string; trading_days: number }>(
+      'SELECT status, trading_days FROM seasons WHERE id = $1 FOR UPDATE',
+      [id],
+    );
+    if (!s.rows[0]) throw new ConfigError(`No season ${id}.`, 'Check the season id.');
+    if (s.rows[0].status === 'finished')
+      throw new ConfigError(`Season ${id} has already finished.`, 'Nothing to do.');
+    const held = await tx.query<{ last: string | null; days: number }>(
+      "SELECT to_char(max(trading_date),'YYYY-MM-DD') AS last, count(DISTINCT trading_date)::int AS days FROM rounds WHERE season_id = $1",
+      [id],
+    );
+    const last = held.rows[0]?.last ?? null;
+    const days = held.rows[0]?.days ?? 0;
+    await tx.query(
+      "UPDATE seasons SET status = 'finished', ends_on = coalesce($2::date, starts_on), trading_days = greatest($3::int, 1) WHERE id = $1",
+      [id, last, days],
+    );
+    await adminLog(
+      tx,
+      'end-season',
+      { id, endsOn: last, tradingDaysHeld: days, plannedTradingDays: s.rows[0].trading_days },
+      reason,
+      who,
+    );
+    summary = last
+      ? `Season ${id} finished early after ${days} trading day(s), on ${last}. Its standings are frozen at that day's marks.`
+      : `Season ${id} ended before its first round.`;
+  });
+  return summary;
+}
+
 /** Writes an adjusting CORRECTION entry that references the original (SPEC §11.7). Never edits a row. */
 export async function correct(
   db: pg.Pool,

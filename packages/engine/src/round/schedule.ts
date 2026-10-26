@@ -8,6 +8,8 @@ const toMin = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number);
   return h! * 60 + m!;
 };
+/** Minutes since midnight for an HH:mm string. */
+export const minutesOf = toMin;
 const toHhmm = (min: number) =>
   `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 

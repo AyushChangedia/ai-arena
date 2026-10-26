@@ -1,6 +1,8 @@
 /**
  * Validation and execution of one participant's actions in one round (SPEC §11.1–§11.6).
  * Pure: takes the portfolio and the fill snapshot's prices, returns per-action outcomes and the new state.
+ * Positions are signed: a negative quantity is a short (intraday product only), and its average cost is
+ * the average price it was sold at.
  */
 import { REJECTION_CODES, type RejectionCode } from '@arena/shared/codes';
 import type { FeesConfig } from '@arena/shared/schemas';
@@ -41,6 +43,8 @@ export interface ActionOutcome {
   symbolRaw: string | null;
   quantityRaw: unknown;
   why: string | null;
+  /** The model's stated exit (target, stop or time). Published, never acted on. */
+  exitPlan: string | null;
   side: Side | null;
   symbol: string | null;
   quantity: number | null;
@@ -64,6 +68,12 @@ export interface ExecutionContext {
   maxWeightPct: number;
   slippageBps: number;
   fees: FeesConfig;
+  /** Intraday product: a SELL beyond the shares held opens or adds to a short position. */
+  allowShort?: boolean;
+  /** Longs plus shorts at the valuation price may not exceed this % of total value (100 = no leverage). */
+  maxGrossExposurePct?: number;
+  /** Engine-generated closing orders (square-off): the limits on opening a position don't apply. */
+  forced?: boolean;
 }
 
 export interface ExecutionResult {
@@ -107,12 +117,14 @@ function parseAction(raw: unknown, position: number): Parsed {
     : null;
   const quantityRaw = obj ? (obj.quantity === undefined ? null : obj.quantity) : null;
   const why = obj ? str(obj.why) : null;
+  const exitPlan = obj ? str(obj.exit_plan) : null;
   const base = {
     position,
     sideRaw,
     symbolRaw,
     quantityRaw,
     why,
+    exitPlan,
     side: null,
     symbol: null,
     quantity: null,
@@ -163,6 +175,8 @@ export function executeActions(
 ): ExecutionResult {
   const state = clonePortfolio(start);
   const soldToday = new Set(ctx.soldToday);
+  const allowShort = ctx.allowShort ?? false;
+  const maxExposurePct = ctx.maxGrossExposurePct ?? 100;
   const parsed = rawActions.map((a, i) => parseAction(a, i));
   const tooMany: ActionOutcome[] = [];
   const kept: Parsed[] = [];
@@ -196,18 +210,27 @@ export function executeActions(
       outcomes.push(reject(b, 'CONFLICTING_SIDES', `Tried to buy ${sym} while also selling it`));
       continue;
     }
+    // Signed position: negative = short. A SELL closes a long first, then opens or adds to a short;
+    // a BUY covers a short first, then opens or adds to a long.
     const held = heldQty(state, sym);
-    if (side === 'SELL' && held === 0) {
+    const closing =
+      side === 'SELL' ? Math.min(qty, Math.max(held, 0)) : Math.min(qty, Math.max(-held, 0));
+    const opening = qty - closing;
+    if (side === 'SELL' && opening > 0 && !allowShort && held <= 0) {
       outcomes.push(reject(b, 'UNKNOWN_SYMBOL', `Tried to sell ${qty} ${sym}, held 0`));
       continue;
     }
-    if (side === 'BUY' && !ctx.universe.has(sym)) {
-      if (held > 0)
+    // Under long-only rules a SELL never opens a position (too many shares is INSUFFICIENT_HOLDINGS below).
+    const opens = opening > 0 && (side === 'BUY' || allowShort);
+    if (opens && !ctx.universe.has(sym)) {
+      if (held !== 0)
         outcomes.push(
           reject(
             b,
             'NOT_IN_UNIVERSE_FOR_BUY',
-            `${sym} has left the Nifty 50: it can be sold but not bought`,
+            held > 0
+              ? `${sym} has left the Nifty 50: it can be sold but not bought`
+              : `${sym} has left the Nifty 50: it can be bought back but not shorted`,
           ),
         );
       else outcomes.push(reject(b, 'UNKNOWN_SYMBOL', `${sym} is not in the Nifty 50`));
@@ -222,89 +245,84 @@ export function executeActions(
       outcomes.push(reject(b, 'PRICE_UNAVAILABLE', `No valid price for ${sym} this round`));
       continue;
     }
-    const fp = fillPrice(q, side, ctx.slippageBps);
-    const gross = fp.pricePaise * BigInt(qty);
-
-    if (side === 'SELL') {
-      if (qty > held) {
-        outcomes.push(
-          reject(b, 'INSUFFICIENT_HOLDINGS', `Tried to sell ${qty} ${sym}, held ${held}`),
-        );
-        continue;
-      }
-      const ch = computeCharges(ctx.fees, 'SELL', gross, { dpApplies: !soldToday.has(sym) });
-      const pos = state.positions.get(sym)!;
-      const cashDelta = gross - ch.total;
-      state.cashPaise += cashDelta;
-      const after = pos.quantity - qty;
-      const realized = (fp.pricePaise - pos.avgCostPaise) * BigInt(qty) - ch.total;
-      const avgAfter = after > 0 ? pos.avgCostPaise : null;
-      if (after > 0) pos.quantity = after;
-      else state.positions.delete(sym);
-      soldToday.add(sym);
-      outcomes.push({
-        ...b,
-        status: 'executed',
-        rejectCode: null,
-        rejectDetail: null,
-        modelFault: false,
-        fill: {
-          pricePaise: fp.pricePaise,
-          priceSource: fp.source,
-          grossPaise: gross,
-          charges: ch.lines,
-          chargesTotalPaise: ch.total,
-          cashDeltaPaise: cashDelta,
-          cashAfterPaise: state.cashPaise,
-          positionAfter: after,
-          avgCostAfterPaise: avgAfter,
-          realizedPnlPaise: realized,
-        },
-      });
+    if (side === 'SELL' && opening > 0 && !allowShort) {
+      outcomes.push(
+        reject(b, 'INSUFFICIENT_HOLDINGS', `Tried to sell ${qty} ${sym}, held ${held}`),
+      );
       continue;
     }
-
-    // BUY
-    const ch = computeCharges(ctx.fees, 'BUY', gross, { dpApplies: false });
-    const cost = gross + ch.total;
-    if (cost > state.cashPaise) {
+    const fp = fillPrice(q, side, ctx.slippageBps);
+    const gross = fp.pricePaise * BigInt(qty);
+    const ch = computeCharges(ctx.fees, side, gross, {
+      dpApplies: side === 'SELL' && closing > 0 && !soldToday.has(sym),
+    });
+    const cashDelta = side === 'SELL' ? gross - ch.total : -(gross + ch.total);
+    if (side === 'BUY' && -cashDelta > state.cashPaise) {
       outcomes.push(
         reject(
           b,
           'INSUFFICIENT_CASH',
-          `Buying ${qty} ${sym} needs ${fmt(cost)} INR with costs; cash is ${fmt(state.cashPaise)}`,
+          `Buying ${qty} ${sym} needs ${fmt(-cashDelta)} INR with costs; cash is ${fmt(state.cashPaise)}`,
         ),
       );
       continue;
     }
-    // Concentration: after the buy, this stock's value at the valuation price must be ≤ maxWeightPct of total value.
-    const valPx = ctx.valuationPrice(sym) ?? q.ltpPaise;
-    const newQty = held + qty;
-    const cashAfter = state.cashPaise - cost;
+    const after = side === 'SELL' ? held - qty : held + qty;
+    const cashAfter = state.cashPaise + cashDelta;
+    if (opens && !ctx.forced) {
+      // Limits on opening or adding to a position, at the valuation price, after the trade.
+      const valPx = ctx.valuationPrice(sym) ?? q.ltpPaise;
+      const trial: PortfolioState = { cashPaise: cashAfter, positions: new Map(state.positions) };
+      trial.positions.set(sym, { quantity: after, avgCostPaise: fp.pricePaise });
+      const priceOf = (s: string) => (s === sym ? valPx : ctx.valuationPrice(s));
+      const total = cashAfter + holdingsValue(trial, priceOf);
+      const stockValue = BigInt(Math.abs(after)) * valPx;
+      const verb = side === 'BUY' ? 'Buying' : after < 0 ? 'Shorting' : 'Selling';
+      if (total <= 0n || stockValue * 100n > total * BigInt(ctx.maxWeightPct)) {
+        outcomes.push(
+          reject(
+            b,
+            'CONCENTRATION_LIMIT',
+            `${verb} ${qty} ${sym} would make it ${total > 0n ? pct(stockValue, total) : 'over 100'}% of the portfolio; the limit is ${ctx.maxWeightPct}%`,
+          ),
+        );
+        continue;
+      }
+      const exposure = grossExposure(trial, priceOf);
+      if (exposure * 100n > total * BigInt(maxExposurePct)) {
+        outcomes.push(
+          reject(
+            b,
+            'EXPOSURE_LIMIT',
+            `${verb} ${qty} ${sym} would take longs plus shorts to ${pct(exposure, total)}% of the portfolio; the limit is ${maxExposurePct}%`,
+          ),
+        );
+        continue;
+      }
+    }
     const pos = state.positions.get(sym);
-    const trial: PortfolioState = { cashPaise: cashAfter, positions: new Map(state.positions) };
-    trial.positions.set(sym, {
-      quantity: newQty,
-      avgCostPaise: pos?.avgCostPaise ?? fp.pricePaise,
-    });
-    const total =
-      cashAfter + holdingsValue(trial, (s) => (s === sym ? valPx : ctx.valuationPrice(s)));
-    const stockValue = BigInt(newQty) * valPx;
-    if (stockValue * 100n > total * BigInt(ctx.maxWeightPct)) {
-      outcomes.push(
-        reject(
-          b,
-          'CONCENTRATION_LIMIT',
-          `Buying ${qty} ${sym} would make it ${pct(stockValue, total)}% of the portfolio; the limit is ${ctx.maxWeightPct}%`,
-        ),
+    let avgAfter: bigint | null;
+    if (after === 0) avgAfter = null;
+    else if (held === 0 || Math.sign(after) !== Math.sign(held)) avgAfter = fp.pricePaise;
+    else if (Math.abs(after) < Math.abs(held)) avgAfter = pos!.avgCostPaise;
+    else
+      avgAfter = divRoundHalfUp(
+        BigInt(Math.abs(held)) * pos!.avgCostPaise + gross,
+        BigInt(Math.abs(after)),
       );
-      continue;
-    }
-    const avgAfter = pos
-      ? divRoundHalfUp(BigInt(pos.quantity) * pos.avgCostPaise + gross, BigInt(newQty))
-      : fp.pricePaise;
+    // Realised P&L on the part that closed a position, less this order's charges.
+    const realized =
+      closing > 0
+        ? (side === 'SELL'
+            ? fp.pricePaise - pos!.avgCostPaise
+            : pos!.avgCostPaise - fp.pricePaise) *
+            BigInt(closing) -
+          ch.total
+        : null;
     state.cashPaise = cashAfter;
-    state.positions.set(sym, { quantity: newQty, avgCostPaise: avgAfter });
+    if (after === 0) state.positions.delete(sym);
+    else state.positions.set(sym, { quantity: after, avgCostPaise: avgAfter! });
+    if (side === 'SELL') soldToday.add(sym);
     outcomes.push({
       ...b,
       status: 'executed',
@@ -317,11 +335,11 @@ export function executeActions(
         grossPaise: gross,
         charges: ch.lines,
         chargesTotalPaise: ch.total,
-        cashDeltaPaise: -cost,
+        cashDeltaPaise: cashDelta,
         cashAfterPaise: cashAfter,
-        positionAfter: newQty,
+        positionAfter: after,
         avgCostAfterPaise: avgAfter,
-        realizedPnlPaise: null,
+        realizedPnlPaise: realized,
       },
     });
   }
@@ -331,13 +349,25 @@ export function executeActions(
   return { outcomes, state, soldToday };
 }
 
+/** Longs plus shorts at the given prices (absolute values). */
+function grossExposure(p: PortfolioState, priceOf: (symbol: string) => bigint | null): bigint {
+  let v = 0n;
+  for (const [sym, pos] of p.positions) {
+    if (pos.quantity === 0) continue;
+    const px = priceOf(sym);
+    if (px === null) throw new Error(`no valuation price for held symbol ${sym}`);
+    v += BigInt(Math.abs(pos.quantity)) * px;
+  }
+  return v;
+}
+
 function fmt(p: bigint): string {
   // Only called with non-negative amounts (cash and costs).
   return `${p / 100n}.${(p % 100n).toString().padStart(2, '0')}`;
 }
 
 function pct(part: bigint, whole: bigint): string {
-  // whole ≥ part > 0: the total includes the stock being bought.
+  // whole > 0 (callers check); part ≥ 0.
   const tenths = divRoundHalfUp(part * 1000n, whole);
   return `${tenths / 10n}.${tenths % 10n}`;
 }

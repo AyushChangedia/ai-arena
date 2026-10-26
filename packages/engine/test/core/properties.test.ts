@@ -12,9 +12,13 @@ import {
 } from '../../src/core/ledger';
 import { CHARGE_KEYS } from '../../src/core/fees';
 import { verifyChain } from '@arena/shared/ledger-hash';
+import { join } from 'node:path';
 import { must, loadFees } from '../../src/config/load';
 
-const fees = must(loadFees());
+/** Long-only delivery (S0's rules) and intraday long-short (the committed rules since 2026-10-26). */
+const deliveryFees = must(loadFees(join(__dirname, '../fixtures/delivery')));
+const intradayFees = must(loadFees());
+type Mode = 'delivery' | 'intraday';
 const SYMBOLS = ['AAA', 'BBB', 'CCC', 'DDD', 'EEE', 'FFF'];
 const RUNS = { numRuns: 1000 };
 
@@ -52,7 +56,8 @@ const roundArb = fc.record({
 
 type Round = typeof roundArb extends fc.Arbitrary<infer T> ? T : never;
 
-async function simulate(rounds: Round[]) {
+async function simulate(rounds: Round[], mode: Mode = 'delivery') {
+  const intraday = mode === 'intraday';
   let state: PortfolioState = { cashPaise: 10_000_000n, positions: new Map() };
   const t = new Date('2026-11-02T04:00:00Z');
   const base = (i: number) => ({
@@ -93,7 +98,9 @@ async function simulate(rounds: Round[]) {
       maxActions: 5,
       maxWeightPct: 25,
       slippageBps: 5,
-      fees,
+      fees: intraday ? intradayFees : deliveryFees,
+      allowShort: intraday,
+      maxGrossExposurePct: 100,
     };
     const res = executeActions(r.actions, state, ctx);
     for (const o of res.outcomes) {
@@ -101,7 +108,7 @@ async function simulate(rounds: Round[]) {
       const f = o.fill!;
       for (const k of CHARGE_KEYS) if (f.charges[k] < 0n) violations.push(`negative charge ${k}`);
       if (f.cashAfterPaise < 0n) violations.push('negative cash');
-      if (f.positionAfter < 0) violations.push('negative quantity');
+      if (!intraday && f.positionAfter < 0) violations.push('negative quantity');
       drafts.push(
         tradeDraft(base(n++), {
           actionId: `a${n}`,
@@ -129,6 +136,7 @@ async function simulate(rounds: Round[]) {
     };
     for (const o of res.outcomes) {
       if (o.status !== 'executed') continue;
+      const before = running.positions.get(o.symbol!)?.quantity ?? 0;
       running = { cashPaise: o.fill!.cashAfterPaise, positions: running.positions };
       if (o.fill!.positionAfter === 0) running.positions.delete(o.symbol!);
       else
@@ -136,17 +144,29 @@ async function simulate(rounds: Round[]) {
           quantity: o.fill!.positionAfter,
           avgCostPaise: o.fill!.avgCostAfterPaise!,
         });
-      if (o.side === 'BUY') {
+      const after = o.fill!.positionAfter;
+      // Opened or added to a position: a long BUY, a short SELL, or a trade that crossed zero.
+      const opened =
+        after !== 0 &&
+        (Math.sign(after) !== Math.sign(before) || Math.abs(after) > Math.abs(before));
+      if (opened) {
         const m = markPortfolio(running, (s) => prices.get(s) ?? null);
-        const v = BigInt(o.fill!.positionAfter) * prices.get(o.symbol!)!;
+        const v = BigInt(Math.abs(after)) * prices.get(o.symbol!)!;
         if (v * 100n > m.totalPaise * 25n) violations.push(`concentration breach on ${o.symbol}`);
+        let gross = 0n;
+        for (const [s, p] of running.positions)
+          gross += BigInt(Math.abs(p.quantity)) * prices.get(s)!;
+        if (gross > m.totalPaise) violations.push(`exposure breach on ${o.symbol}`);
       }
+      if (!intraday && o.side === 'SELL' && after < 0) violations.push('short in long-only mode');
     }
     state = res.state;
     soldToday = res.soldToday;
     if (state.cashPaise < 0n) violations.push('negative cash');
-    for (const p of state.positions.values())
-      if (p.quantity < 0) violations.push('negative position');
+    for (const p of state.positions.values()) {
+      if (!intraday && p.quantity < 0) violations.push('negative position');
+      if (p.quantity === 0) violations.push('zero position kept');
+    }
     const m = markPortfolio(state, (s) => prices.get(s) ?? null);
     let sum = state.cashPaise;
     for (const [s, p] of state.positions) sum += BigInt(p.quantity) * prices.get(s)!;
@@ -156,48 +176,51 @@ async function simulate(rounds: Round[]) {
   return { state, entries, violations };
 }
 
-describe('property tests (SPEC §19.2), 1,000 runs each', () => {
-  it('cash and quantities never go negative; charges never negative; no accepted BUY breaches 25%; total = cash + holdings', async () => {
-    await fc.assert(
-      fc.asyncProperty(fc.array(roundArb, { minLength: 1, maxLength: 6 }), async (rounds) => {
-        const { violations } = await simulate(rounds);
-        expect(violations).toEqual([]);
-      }),
-      RUNS,
-    );
-  });
+describe.each(['delivery', 'intraday'] as const)(
+  'property tests (SPEC §19.2), %s rules, 1,000 runs each',
+  (mode) => {
+    it('cash never goes negative (and quantities only in intraday); charges never negative; no opening trade breaches 25% or 100% exposure; total = cash + positions', async () => {
+      await fc.assert(
+        fc.asyncProperty(fc.array(roundArb, { minLength: 1, maxLength: 6 }), async (rounds) => {
+          const { violations } = await simulate(rounds, mode);
+          expect(violations).toEqual([]);
+        }),
+        RUNS,
+      );
+    });
 
-  it('rebuilding from the ledger reproduces positions and cash exactly, and the hash chain verifies', async () => {
-    await fc.assert(
-      fc.asyncProperty(fc.array(roundArb, { minLength: 1, maxLength: 6 }), async (rounds) => {
-        const { state, entries } = await simulate(rounds);
-        const rebuilt = rebuildFromLedger(entries).get('P')!;
-        expect(rebuilt.cashPaise).toBe(state.cashPaise);
-        expect([...rebuilt.positions.entries()].sort()).toEqual(
-          [...state.positions.entries()].sort(),
-        );
-        const chain = await verifyChain(entries);
-        expect(chain.ok).toBe(true);
-      }),
-      RUNS,
-    );
-  });
-
-  it('tampering with any entry breaks the chain', async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.array(roundArb, { minLength: 1, maxLength: 4 }),
-        fc.nat(),
-        async (rounds, pick) => {
-          const { entries } = await simulate(rounds);
-          const i = pick % entries.length;
-          const tampered = entries.map((e, j) =>
-            j === i ? { ...e, note: `${e.note ?? ''}x` } : e,
+    it('rebuilding from the ledger reproduces positions and cash exactly, and the hash chain verifies', async () => {
+      await fc.assert(
+        fc.asyncProperty(fc.array(roundArb, { minLength: 1, maxLength: 6 }), async (rounds) => {
+          const { state, entries } = await simulate(rounds, mode);
+          const rebuilt = rebuildFromLedger(entries).get('P')!;
+          expect(rebuilt.cashPaise).toBe(state.cashPaise);
+          expect([...rebuilt.positions.entries()].sort()).toEqual(
+            [...state.positions.entries()].sort(),
           );
-          expect((await verifyChain(tampered)).ok).toBe(false);
-        },
-      ),
-      { numRuns: 200 },
-    );
-  });
-});
+          const chain = await verifyChain(entries);
+          expect(chain.ok).toBe(true);
+        }),
+        RUNS,
+      );
+    });
+
+    it('tampering with any entry breaks the chain', async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          fc.array(roundArb, { minLength: 1, maxLength: 4 }),
+          fc.nat(),
+          async (rounds, pick) => {
+            const { entries } = await simulate(rounds, mode);
+            const i = pick % entries.length;
+            const tampered = entries.map((e, j) =>
+              j === i ? { ...e, note: `${e.note ?? ''}x` } : e,
+            );
+            expect((await verifyChain(tampered)).ok).toBe(false);
+          },
+        ),
+        { numRuns: 200 },
+      );
+    });
+  },
+);

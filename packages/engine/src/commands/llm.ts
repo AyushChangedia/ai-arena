@@ -41,6 +41,7 @@ import {
 } from '../round/store';
 import { writeStepSummary, mdTable } from '../ops/summary';
 import type { PortfolioState } from '../core/portfolio';
+import { tradingLimits } from '../round/runner';
 
 /** pnpm engine roster --tier budget|flagship|free [--write] [--out path] */
 export async function rosterCommand(args: ParsedArgs): Promise<number> {
@@ -187,6 +188,9 @@ export async function decideCommand(args: ParsedArgs): Promise<number> {
           prices,
           history: part && db && season ? await historyFor(db, season.id, part.id, null) : [],
           noteToSelf: part && db ? await lastNoteToSelf(db, part.id) : null,
+          squareOffAt:
+            ctx.arena.product === 'intraday_long_short' ? ctx.arena.intraday!.squareOffFrom : null,
+          maxGrossExposurePct: ctx.arena.limits.maxGrossExposurePct,
         });
         const rec = await decideWithModel({
           client,
@@ -216,9 +220,7 @@ export async function decideCommand(args: ParsedArgs): Promise<number> {
               valuationPrice: (s) => fillQuotes.get(s)?.ltpPaise ?? prices.get(s) ?? null,
               suspended,
               soldToday: part && db ? await soldToday(db, part.id, tradingDate) : new Set(),
-              maxActions: ctx.arena.limits.maxActionsPerRound,
-              maxWeightPct: ctx.arena.limits.maxWeightPct,
-              slippageBps: ctx.arena.limits.slippageBps,
+              ...tradingLimits(ctx.arena),
               fees: ctx.fees,
             })
           : null;

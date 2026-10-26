@@ -4,11 +4,16 @@ export const REJECTION_CODES = {
   INVALID_SIDE: { modelFault: true, label: 'Side was not BUY or SELL' },
   INVALID_QUANTITY: { modelFault: true, label: 'Quantity was not a whole number of at least 1' },
   UNKNOWN_SYMBOL: { modelFault: true, label: 'Unknown symbol' },
-  NOT_IN_UNIVERSE_FOR_BUY: { modelFault: true, label: 'Stock left the index: can sell, can’t buy' },
+  NOT_IN_UNIVERSE_FOR_BUY: {
+    modelFault: true,
+    label: 'Stock left the index: can close, can’t open',
+  },
   DUPLICATE_ACTION: { modelFault: true, label: 'Duplicate action' },
   CONFLICTING_SIDES: { modelFault: true, label: 'Bought a stock it was also selling' },
   TOO_MANY_ACTIONS: { modelFault: true, label: 'Too many actions' },
   INSUFFICIENT_HOLDINGS: { modelFault: true, label: 'Sold more than it held' },
+  /** Intraday product: longs plus shorts would exceed the exposure limit (no leverage). */
+  EXPOSURE_LIMIT: { modelFault: true, label: 'Over the exposure limit (no leverage)' },
   INSUFFICIENT_CASH: { modelFault: true, label: 'Not enough cash' },
   CONCENTRATION_LIMIT: { modelFault: true, label: 'Over the 25% limit' },
   PRICE_UNAVAILABLE: { modelFault: false, label: 'No price this round' },
@@ -30,6 +35,8 @@ export const DECISION_STATUSES = [
   'EXECUTION_FAILED',
   'MISSED_ABORTED',
   'RETIRED',
+  /** Engine-generated: the intraday square-off closed this participant's open positions. */
+  'SQUARE_OFF',
 ] as const;
 export type DecisionStatus = (typeof DECISION_STATUSES)[number];
 
@@ -79,4 +86,5 @@ export const STATUS_PUBLIC_TEXT: Record<DecisionStatus, string> = {
   EXECUTION_FAILED: 'Not executed: recording failed',
   MISSED_ABORTED: 'Round aborted',
   RETIRED: 'Retired',
+  SQUARE_OFF: 'Square-off: open positions closed',
 };

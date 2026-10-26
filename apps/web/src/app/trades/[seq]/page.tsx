@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { cacheLife, cacheTag } from 'next/cache';
 import type { LedgerEntry } from '@arena/shared/ledger-hash';
-import { formatInr, formatDateTimeIst, formatInt } from '@arena/shared/format';
+import { tradeVerb, formatInr, formatDateTimeIst, formatInt } from '@arena/shared/format';
 import { fees } from '@/lib/config';
 import { loadTrade, loadArena } from '@/lib/data';
 import { holidayDates } from '@/lib/holidays';
@@ -62,7 +62,7 @@ function toEntry(e: LedgerRow): LedgerEntry {
 const CHARGE_LABELS: Record<string, string> = {
   ...Object.fromEntries(Object.entries(fees.charges).map(([k, v]) => [k, v.label])),
   gst: fees.gst.label,
-  dp: fees.dpCharge.label,
+  dp: fees.dpCharge?.label ?? 'DP charge',
 };
 
 async function TradePage({ seq }: { seq: string }) {
@@ -78,9 +78,10 @@ async function TradePage({ seq }: { seq: string }) {
   if (!r.data) notFound();
   const { entry: e, neighbours, participant, action, cashBeforePaise, snapshotAt, round } = r.data;
   const title =
-    e.entryType === 'BUY' || e.entryType === 'SELL'
-      ? `${e.entryType === 'BUY' ? 'Bought' : 'Sold'} ${e.quantity} ${e.symbol}`
+    (e.entryType === 'BUY' || e.entryType === 'SELL') && e.quantity !== null
+      ? `${tradeVerb(e.entryType, e.quantity, e.positionAfter)} ${e.quantity} ${e.symbol}`
       : e.entryType.replace(/_/g, ' ').toLowerCase();
+  const squareOff = round?.kind === 'square_off';
   return (
     <PageShell
       mode={a.data.mode}
@@ -137,15 +138,30 @@ async function TradePage({ seq }: { seq: string }) {
             <dt className="text-text-2">Realised P&amp;L</dt>
             <dd className="num">
               {e.realizedPnlPaise === null ? (
-                <Missing reason="Only sells realise P&L" />
+                <Missing reason="Only a trade that closes a position realises P&L" />
               ) : (
                 formatInr(e.realizedPnlPaise)
               )}
             </dd>
           </dl>
-          {action?.why ? (
-            <p className="model-text mt-3 text-sm">The model&apos;s reason: {action.why}</p>
-          ) : null}
+          {squareOff ? (
+            <p className="mt-3 text-sm">
+              Square-off: the engine closed this position (intraday rule, nothing is held
+              overnight). The model did not choose this trade.
+            </p>
+          ) : (
+            <>
+              {action?.why ? (
+                <p className="model-text mt-3 text-sm">The model&apos;s reason: {action.why}</p>
+              ) : null}
+              {action?.exitPlan ? (
+                <p className="model-text mt-2 text-sm">
+                  Its exit plan: {action.exitPlan}{' '}
+                  <span className="text-text-2">(published, never acted on)</span>
+                </p>
+              ) : null}
+            </>
+          )}
           {e.note ? <p className="model-text mt-3 text-sm text-text-2">Note: {e.note}</p> : null}
           <p className="mt-3 text-sm">
             {round ? (

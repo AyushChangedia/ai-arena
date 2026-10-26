@@ -97,6 +97,46 @@ test.describe('populated shadow season', () => {
     ).toBeVisible();
   });
 
+  test('trades explain themselves: strategy, why and exit plan; shorts and the square-off', async ({
+    page,
+  }) => {
+    await page.goto(at(P.populated, '/models/openai'));
+    await expect(page.getByRole('columnheader', { name: 'Why' })).toBeVisible();
+    await expect(page.getByText(/^Shorted 2 [A-H]{3}$/).first()).toBeVisible();
+    await expect(
+      page.getByText(/fell below its opening range on heavy volume/).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Exit plan: Buy back 1% lower, or if it reclaims the open.').first(),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByText(
+          'Square-off: the engine closed the position (intraday rule, nothing is held overnight).',
+        )
+        .first(),
+    ).toBeVisible();
+    await page.getByRole('tab', { name: 'Thinking' }).click();
+    await expect(
+      page.getByText(/openai: momentum\. Buy stocks breaking out/).first(),
+    ).toBeVisible();
+    await page.goto(at(P.populated, '/'));
+    const section = page.getByRole('region', { name: 'The models' });
+    await expect(section.getByText('Strategy', { exact: true }).first()).toBeVisible();
+    await expect(
+      section.getByText(/^Intraday: every position is closed by 15:15 IST\.$/).first(),
+    ).toBeVisible();
+    await page.goto(at(P.populated, '/rounds'));
+    await expect(page.getByText('Square-off at 15:02 IST')).toBeVisible();
+    await page.goto(at(P.populated, '/rules'));
+    await expect(
+      page.getByText(
+        /^From 15:00 IST \(by 15:15 at the latest\) the engine closes every open position/,
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole('cell', { name: '₹20.00 per order' })).toBeVisible();
+  });
+
   test('every page renders and is axe-clean', async ({ page }, info) => {
     await page.goto(at(P.populated, '/rounds'));
     const roundHref = await firstHref(page, '/rounds/');

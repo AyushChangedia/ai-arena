@@ -69,13 +69,31 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 
 ## In progress
 
-Nothing. The build is complete; the remaining work needs the owner (SETUP.md).
+Nothing in code. The intraday switch (below) waits for the owner's "merge", then the migration and the season switch.
 
 ## Blocked on the human
 
-See SETUP.md (numbered steps, in order). Nothing here blocks the build.
+- **Intraday switch (2026-10-26):** merge the PR, then, in order: run `migrate.yml` (applies `0003_intraday_strategy.sql`), run `admin.yml` → `end-season` with id `S0`, then `admin.yml` → `start-season` with id `P1`, start `2026-10-27`, mode `shadow` (SETUP.md step 23a). All three must finish before 09:30 IST on the first P1 day. Until the migration runs, a tick with the new code fails (missing columns).
+- Otherwise see SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
 ## Not verified / known gaps
+
+- **Intraday long-short, ₹20 brokerage, strategy and a fresh practice season (owner's decisions, 2026-10-26).** SPEC §3, §10, §10.3, §11.3, §11.5, §11.6, §11.8, §11.9, §12.1, §12.3a (new), §12.5, §12.9, §14, §16.3 and §18.1 are updated. What changed:
+  - Rules (`config/arena.json`): `product: "intraday_long_short"`, `intraday.squareOffFrom` 15:00, `squareOffDeadline` 15:15, `limits.maxGrossExposurePct` 100. Config validation requires the last round plus grace to end before the square-off. A SELL beyond the shares held opens or adds to a short (negative quantity); a BUY covers a short first. Any trade that opens or adds to a position is checked against the 25% concentration limit (long or short) and the new `EXPOSURE_LIMIT` (longs plus shorts ≤ 100% of value, no leverage). Closing trades are never blocked by limits, but a cover needs cash.
+  - Square-off (`runSquareOff` in `packages/engine/src/round/runner.ts`): from 15:00 every tick that finds open positions records a `square_off` round, takes a fill snapshot and closes everything (engine decisions with status `SQUARE_OFF`). A symbol with no price stays open and is retried; end of day closes leftovers at the valuation snapshot. It runs while paused, except during a reconciliation review. With the cron-job.org timer the attempts land at 15:02 and 15:12.
+  - Charges (`config/fees.json`): intraday profile, ₹20 flat brokerage per executed order (+18% GST), STT 0.025% on sells, stamp 0.003% on buys, no DP charge. The fee schema gains `flatPaisePerOrder`; `dpCharge` may be null. The delivery profile is kept as a test fixture with its original golden cases.
+  - Strategy: the answer adds `strategy` and, per action, `exit_plan` (published, never acted on); `why` grows to 400 characters. Missing strategy is flagged, never blocks trades. Stored in `decisions.strategy` and `actions.exit_plan` (migration 0003), exported in `decisions.jsonl`, shown on the model panels, the round panel and page, the Thinking tab, and a new **Why** column on the Trades tab. Trades read Bought / Sold / Shorted / Bought back.
+  - The Monkey opens random longs or shorts; long-only rounds replay unchanged. Win rate counts closing fills (sells of longs and covering buys). Square-off rounds count towards no one's uptime or accepted actions and stay out of the status strip and "last round".
+  - New admin command `end-season --id --reason` (and in `admin.yml`), for ending S0 early.
+  - Verified: `pnpm check` → format, typecheck, lint, 286 unit and property tests (property tests now run under both delivery and intraday rules, 1,000 runs each), coverage of shared + core 99.6% lines / 96.5% branches, guards clean. `TEST_PG_URL=… pnpm test:int` → 66 passed, including the new `intraday.int.test.ts` (a short opened in a round, the 15:02 square-off with the cover's realised P&L to the paisa, replay of both rounds, export with strategy and exit plans, the public views, a symbol with no price retried and closed at end of day, the square-off while paused, `end-season` then a new season). Web build ok; Playwright → 43 passed, 2 skipped by design, including a new test for the Why column, Shorted trades, exit plans, the strategy on panels, the square-off round and the rules page.
+  - **Not verified:**
+    - Intraday charges against a broker's calculator (`verifiedOn` stays null). STT 0.025% (sell) and stamp 0.003% (buy) come from third-party 2026 summaries; broker sites weren't reachable. Zerodha's own brokerage is the lower of ₹20 and 0.03%; the arena charges a flat ₹20 as the owner asked.
+    - The square-off against the live market: first chance is the first P1 day at 15:02.
+    - Whether the free models fill in `strategy` and `exit_plan`. Nemotron and Xing get them enforced by structured outputs; Gemma and Flint only by the prompt (a missing strategy shows "No strategy given").
+  - Known gaps:
+    - `pnpm engine replay` uses the current config, so S0's rounds (delivery charges) no longer replay with the committed fees. To replay them, use the delivery fixture config (`packages/engine/test/fixtures/delivery/`).
+    - A forced cover still needs cash. It would only fail if a short more than doubled in a day (impossible under the 100% exposure limit and NSE price bands); it would then stay open with an incident.
+    - Corporate actions aren't applied to shorts. Nothing is held overnight under intraday, unless a square-off fails completely, which raises a critical incident.
 
 - **2026-10-26: busy free models and empty replies.** In the 11:00 and 12:30 rounds:
   - Gemma and Xing got HTTP 429 ("provider returned error") on every attempt; the retries came only 2 s and 6 s later.
@@ -185,6 +203,8 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 - Migrations use a small runner (`packages/db/src/migrate.ts`) over committed SQL files instead of drizzle-kit's migrator, because the triggers, roles and views are hand-written SQL. The Drizzle schema is kept in sync by a test.
 
 ## Next
+
+0. Intraday switch: the owner says "merge"; then migrate, `end-season S0`, `start-season P1 --start 2026-10-27 --mode shadow` (SETUP.md step 23a). After the first P1 day, record the square-off and the models' strategy answers here.
 
 1. The owner finishes the steps that need his secrets and accounts, in this order: SETUP.md step 5 (role passwords → `DATABASE_URL` secret, `DATABASE_URL_READONLY` in Vercel), 6 (Angel One), 7 (OpenRouter), 16 (`REVALIDATE_SECRET` in Vercel and GitHub), then a Vercel redeploy, smoke runs 12–15, optional alerts (20), enabling tick and keepalive (22) and starting S0 (23).
 2. The owner picks the DP charge (₹15.93 as now, or Zerodha's ₹15.34), then a session updates `config/fees.json` and the golden tests together and sets `verifiedOn`.

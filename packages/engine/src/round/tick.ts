@@ -7,13 +7,13 @@ import { mdTable } from '../ops/summary';
 import { recordHeartbeat } from '../ops/heartbeat';
 import { revalidateIfDue } from '../ops/revalidate';
 import { openIncident } from '../ops/incidents';
-import { runRound, type RoundSummary } from './runner';
+import { runRound, runSquareOff, type RoundSummary } from './runner';
 import { runPreMarket, startJob, endJob, jobStatus } from './premarket';
 import { runEndOfDay } from './eod';
 import { abortStaleRounds, recordMissedSlots, recordPausedSlot } from './recovery';
 import { exportDay } from './export';
 import { dueSlot, isBetween, isAfter, istNow } from './schedule';
-import { currentSeason, isPaused } from './store';
+import { currentSeason, heldSymbols, isPaused, type SeasonRow } from './store';
 import { mappingFromDb, snapshotFor, summariseSnapshot } from '../data/market';
 import type { Deps } from './deps';
 
@@ -100,6 +100,25 @@ export async function tick(d: Deps, opts: TickOptions): Promise<TickResult> {
     return { ran, rounds, exported, ok, summary: render(now, ran, rounds, exported, notes) };
   }
 
+  // Step 6b: the intraday square-off. It also runs while the arena is paused, so no position is held
+  // overnight, unless the pause is for a reconciliation mismatch (the numbers are under review).
+  const squareOff = async (s: SeasonRow) => {
+    const io = d.arena.product === 'intraday_long_short' ? d.arena.intraday : undefined;
+    if (!io || !isBetween(now, io.squareOffFrom, d.arena.schedule.endOfDayAfter)) return;
+    if (!(await heldSymbols(d.db, s.id)).length) return;
+    try {
+      const r = await runSquareOff(d, s, today, opts.trigger);
+      if (r.status !== 'OWNED_ELSEWHERE' && r.status !== 'NOTHING_OPEN') {
+        rounds.push(r);
+        ran.push(r.slot);
+      }
+    } catch (e) {
+      ok = false;
+      d.log.error({ err: e }, 'square-off failed with an unexpected error');
+      ran.push(`square-off (engine error: ${errorMessage(e)})`);
+    }
+  };
+
   // Step 2: paused.
   if (paused.paused) {
     if (season) {
@@ -107,6 +126,7 @@ export async function tick(d: Deps, opts: TickOptions): Promise<TickResult> {
       const slot = dueSlot(d.arena, today, now);
       if (slot && (await recordPausedSlot(d, season, today, slot, paused.reason)))
         ran.push(`slot ${slot} recorded as paused`);
+      if (paused.reason !== 'reconciliation_mismatch') await squareOff(season);
     }
     await recordHeartbeat(d.db, 'paused', { reason: paused.reason, tick: d.tickId }, now);
     notes.push(`Arena paused: ${paused.reason ?? 'no reason'}.`);
@@ -167,6 +187,7 @@ export async function tick(d: Deps, opts: TickOptions): Promise<TickResult> {
         ran.push(`round ${slot} (engine error: ${errorMessage(e)})`);
       }
     }
+    await squareOff(season);
     // Step 7: end of day.
     if (
       isAfter(now, d.arena.schedule.endOfDayAfter) &&
@@ -180,6 +201,10 @@ export async function tick(d: Deps, opts: TickOptions): Promise<TickResult> {
           problems: r.reconcile.problems.slice(0, 20),
           seasonFinished: r.seasonFinished,
         });
+        if (r.squareOff) {
+          rounds.push(r.squareOff);
+          ran.push(`${r.squareOff.slot} (end of day)`);
+        }
         ran.push(`end of day (reconciliation ${r.reconcile.ok ? 'ok' : 'MISMATCH'})`);
       } catch (e) {
         ok = false;

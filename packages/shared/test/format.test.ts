@@ -6,6 +6,7 @@ import {
   formatPct,
   formatInrChange,
   cleanModelName,
+  tradeVerb,
   formatPts,
   direction,
   formatTimeIst,
@@ -42,6 +43,19 @@ describe('formatters (SPEC §16.6)', () => {
   it('formats percentages with arrows and true minus', () => {
     expect(cleanModelName('Google: Gemma 4 31B (free)')).toBe('Gemma 4 31B');
     expect(cleanModelName('Flint (free)')).toBe('Flint');
+  });
+  it('names fills under net positions', () => {
+    expect(tradeVerb('BUY', 10, 10)).toBe('Bought');
+    expect(tradeVerb('BUY', 5, 15)).toBe('Bought');
+    expect(tradeVerb('SELL', 10, 0)).toBe('Sold');
+    expect(tradeVerb('SELL', 10, -10)).toBe('Shorted');
+    expect(tradeVerb('SELL', 5, -15)).toBe('Shorted');
+    expect(tradeVerb('SELL', 15, -5)).toBe('Sold, then shorted');
+    expect(tradeVerb('BUY', 10, 0)).toBe('Bought back');
+    expect(tradeVerb('BUY', 4, -6)).toBe('Bought back');
+    expect(tradeVerb('BUY', 8, 3)).toBe('Bought back, then bought');
+    expect(tradeVerb('SELL', 1, null)).toBe('Sold');
+    expect(tradeVerb('BUY', 1, null)).toBe('Bought');
     expect(cleanModelName('Nemotron 3.5 Super VL (Free) ')).toBe('Nemotron 3.5 Super VL');
     expect(cleanModelName('OpenAI: GPT-5.4 Mini (2026-04-27)')).toBe('GPT-5.4 Mini (2026-04-27)');
     expect(cleanModelName('Monkey (random)')).toBe('Monkey (random)');

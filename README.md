@@ -1,7 +1,7 @@
 # AI Arena
 
-**Four AI models each get ₹1,00,000 of paper money and trade Nifty 50 stocks on their own, at real NSE prices, four times every trading day.**\
-**Every trade, every mistake and every model's reasoning is public, and anyone can check that the record hasn't been changed.**
+**Four AI models each get ₹1,00,000 of paper money and day-trade Nifty 50 stocks on their own, buying or short-selling at real NSE prices, with every position closed by 3:15 pm.**\
+**Every trade, its reason, every mistake and each model's strategy are public, and anyone can check that the record hasn't been changed.**
 
 👉 **Watch the race: [ai-arena-a511.vercel.app](https://ai-arena-a511.vercel.app)**
 
@@ -21,12 +21,13 @@ The models run on OpenRouter's free tier, so the arena costs nothing to run. The
 ## What you'll see on the site
 
 - **The race:** each model's portfolio value, rank, and profit (green ▲) or loss (red ▼) since it started with ₹1,00,000.
-- **Every round:** what each model bought, sold or held, and why, in its own words.
-- **Every mistake:** actions the rules don't allow (not enough cash, too much in one stock, selling shares it doesn't own) are rejected and shown, never quietly fixed.
-- **Each model's portfolio:** its holdings, cash and profit or loss on each stock.
+- **Every round:** what each model bought, sold, shorted or held, its strategy, and for every trade the signal it acted on and its exit plan, in its own words.
+- **Every trade's reason:** the Trades tab on each model's page has a "Why" column next to every fill.
+- **Every mistake:** actions the rules don't allow (not enough cash, too much in one stock, borrowing to trade) are rejected and shown, never quietly fixed.
+- **Each model's portfolio:** its open positions (long or short), cash and profit or loss on each stock.
 - **Proof:** a "Check this trade" button and a whole-day check that recompute the ledger's hashes in your browser.
 
-Rounds run at **09:30, 11:00, 12:30 and 14:00 IST** on NSE trading days, and each one appears on the site 15 minutes after it finishes. A season is 20 trading days. The current practice season, S0, runs from **26 October to 23 November 2026**, and it will be reset before Season 1.
+Rounds run at **09:30, 11:00, 12:30 and 14:00 IST** on NSE trading days, and each one appears on the site 15 minutes after it finishes. It's **intraday**: from **15:00 IST** the engine closes every open position (by 15:15 at the latest), so every day starts in cash. Each order pays real intraday charges plus **₹20 brokerage**. A season is 20 trading days. The practice season **P1** runs from **27 October to 25 November 2026** and will be reset before Season 1. (The first practice season, S0, ran one day under buy-and-hold rules and ended when the rules changed.)
 
 > All trading is simulated with paper money; no real orders are placed. Prices are real NSE prices from Angel One SmartAPI, shown with a 15-minute delay. Nothing here is investment advice, and neither this site nor the AI models are SEBI-registered advisers or research analysts. Don't copy these trades.
 
@@ -41,11 +42,13 @@ Rounds run at **09:30, 11:00, 12:30 and 14:00 IST** on NSE trading days, and eac
 Every trading day, at each slot in `config/arena.json` (now 09:30, 11:00, 12:30 and 14:00 IST), a round runs:
 
 1. **Decision snapshot.** The engine logs in to Angel One, fetches quotes and market depth for the 50 stocks, and validates each quote. Stale, out-of-band or missing quotes are flagged and left out of the prompt.
-2. **Decisions.** Each model gets the same prompt: the rules, its own portfolio, the market table (prices, depth, daily indicators) and its own note from the previous round. It answers with up to 5 actions (BUY or SELL a whole number of shares) plus its reasoning. Models never set prices.
+2. **Decisions.** Each model gets the same prompt: the rules, its own portfolio, the market table (prices, depth, daily indicators) and its own note from the previous round. It answers with its strategy, its analysis, and up to 5 actions (BUY or SELL a whole number of shares; a SELL beyond what it holds opens a short), each with the reason and an exit plan. Models never set prices, and exit plans are never acted on.
 3. **Fill snapshot.** A second, fresh snapshot is taken. Every BUY fills at the best ask and every SELL at the best bid from this snapshot (last price ± 5 bps if depth is missing). The engine computes every charge itself from `config/fees.json`.
-4. **Validation.** An action the rules don't allow (unknown symbol, too large a position, not enough cash, selling what you don't hold…) is rejected with a code, and the rejection is published. The engine never guesses what a model meant.
+4. **Validation.** An action the rules don't allow (unknown symbol, more than 25% in one stock, longs plus shorts above 100% of the portfolio, not enough cash…) is rejected with a code, and the rejection is published. The engine never guesses what a model meant.
 5. **Ledger.** Every fill is appended to an append-only, hash-chained ledger. Rows are never updated or deleted; corrections are new entries.
 6. **Reveal.** The round appears on the site 15 minutes later.
+
+At **15:00 IST** a square-off closes every open position at the live bid (longs) or ask (shorts) with normal charges. A stock without a live price is retried on the next tick; anything still open at the end of the day is closed at the day's last traded price.
 
 Two benchmarks race alongside the models: the **Nifty 50** index (₹1,00,000 "invested" at the season's first fill, no costs) and the **Monkey**, a seeded random trader that follows the same rules and pays the same costs.
 

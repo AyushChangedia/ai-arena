@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { executeActions, normaliseSymbol, type ExecutionContext } from '../../src/core/execute';
 import type { PortfolioState } from '../../src/core/portfolio';
 import type { QuoteForFill } from '../../src/core/prices';
+import { join } from 'node:path';
 import { must, loadFees } from '../../src/config/load';
 
-const fees = must(loadFees());
+// Long-only delivery rules (no allowShort), as S0 ran; intraday long-short is in execute-intraday.test.ts.
+const fees = must(loadFees(join(__dirname, '../fixtures/delivery')));
 const px: Record<string, bigint> = {
   TCS: 341_250n,
   INFY: 150_000n,
@@ -216,6 +218,18 @@ describe('executeActions: every rejection code (SPEC §11.3)', () => {
     const last = r.outcomes.find((o) => o.position === 5)!;
     expect(last.rejectCode).toBe('TOO_MANY_ACTIONS');
     expect(r.state.positions.get('INFY')!.quantity).toBe(1);
+  });
+  it('INSUFFICIENT_HOLDINGS for a stock that left the index, not NOT_IN_UNIVERSE_FOR_BUY', () => {
+    const q = new Map([
+      ...quotes,
+      ['OLD', { ltpPaise: 10_000n, bidPaise: 9_950n, askPaise: 10_050n, depthAvailable: true }],
+    ]);
+    const r = executeActions(
+      [{ side: 'SELL', symbol: 'OLD', quantity: 10 }],
+      cash(1_000_000n, [['OLD', 5, 10_000n]]),
+      ctx({ fillQuotes: q }),
+    );
+    expect(r.outcomes[0]!.rejectCode).toBe('INSUFFICIENT_HOLDINGS');
   });
   it('INSUFFICIENT_HOLDINGS', () => {
     const r = executeActions(

@@ -13,7 +13,7 @@ import { storeInstruments } from '../data/universe';
 import { renderSystemPrompt, renderUserMessage } from '../llm/prompt';
 import { decideWithModel, type DecisionRecord } from '../llm/decide';
 import { monthSpendUsd, overBudget } from '../llm/budget';
-import { executeActions, type ActionOutcome } from '../core/execute';
+import { executeActions, type ActionOutcome, type ExecutionContext } from '../core/execute';
 import { tradeDraft, seasonStartDraft, adjustDraft, type LedgerDraft } from '../core/ledger';
 import { markPortfolio, type PortfolioState } from '../core/portfolio';
 import { indexBenchmarkValue } from '../core/benchmarks';
@@ -27,7 +27,15 @@ import {
   lastNoteToSelf,
   pricesWithFallback,
 } from './context';
-import { slotTimes, slotInstant, nextRoundText, weekdayName } from './schedule';
+import {
+  slotTimes,
+  slotInstant,
+  nextRoundText,
+  weekdayName,
+  istNow,
+  minutesOfDay,
+  minutesOf,
+} from './schedule';
 import {
   participants as loadParticipants,
   loadPortfolio,
@@ -129,6 +137,7 @@ async function insertDecision(
     privateBlock?: string;
     rec?: DecisionRecord | null;
     reasoning?: string | null;
+    strategy?: string | null;
     note?: string | null;
     flags?: string[];
     seed?: string | null;
@@ -142,8 +151,8 @@ async function insertDecision(
   await db.query(
     `INSERT INTO decisions (id, round_id, participant_id, status, error_class, error_detail, private_block, prompt_sha256, request_params,
        raw_response, parsed, reasoning, note_to_self, flags, serving_model, attempts, latency_ms, input_tokens, output_tokens, reasoning_tokens,
-       cost_usd, cost_estimated, rng_seed)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+       cost_usd, cost_estimated, rng_seed, strategy)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
     [
       id,
       roundId,
@@ -172,6 +181,7 @@ async function insertDecision(
       r?.costUsd ?? null,
       r?.costEstimated ?? false,
       fields.seed ?? null,
+      fields.strategy ?? (r?.decision ? r.decision.strategy || null : null),
     ],
   );
   return id;
@@ -436,16 +446,11 @@ export async function runRound(
     };
     if (p.status === 'retired') {
       if (!portfolio.positions.size) return;
-      const actions = [...portfolio.positions.entries()].map(([symbol, pos]) => ({
-        side: 'SELL',
-        symbol,
-        quantity: pos.quantity,
-        why: 'Retired: holdings are sold.',
-      }));
+      const actions = closingActions(portfolio, 'Retired: positions are closed.');
       const id = await insertDecision(d.db, roundId, p, {
         status: 'RETIRED',
         reasoning:
-          'Retired: the model is no longer available, so its holdings are sold at this round’s prices.',
+          'Retired: the model is no longer available, so its positions are closed at this round’s prices.',
         parsed: { content: null, liquidation: actions },
       });
       pending.push({ participant: p, decisionId: id, status: 'RETIRED', actions, record: null });
@@ -459,14 +464,22 @@ export async function runRound(
           [...market.tradeable].filter(([sym]) => universe.includes(sym) && !suspended.has(sym)),
         ),
         ltp: (sym) => market.tradeable.get(sym) ?? null,
+        allowShort: tradingLimits(d.arena).allowShort,
       });
       const id = await insertDecision(d.db, roundId, p, {
         status: 'OK',
+        strategy: m.strategy,
         reasoning: m.reasoning,
         note: '',
         flags: [],
         seed: m.seedHex,
-        parsed: { content: JSON.stringify({ reasoning: m.reasoning, actions: m.actions }) },
+        parsed: {
+          content: JSON.stringify({
+            strategy: m.strategy,
+            reasoning: m.reasoning,
+            actions: m.actions,
+          }),
+        },
       });
       pending.push({
         participant: p,
@@ -512,6 +525,9 @@ export async function runRound(
       prices,
       history: await historyFor(d.db, season.id, p.id, roundId),
       noteToSelf: await lastNoteToSelf(d.db, p.id),
+      squareOffAt:
+        d.arena.product === 'intraday_long_short' ? d.arena.intraday!.squareOffFrom : null,
+      maxGrossExposurePct: d.arena.limits.maxGrossExposurePct,
     });
     const rec = await decideWithModel({
       client: d.llm(),
@@ -649,141 +665,36 @@ export async function runRound(
 
   for (const pd of pending.filter((x) => x.status === 'OK' || x.status === 'RETIRED')) {
     const p = pd.participant;
-    try {
-      const outcomes = await withTransaction(d.db, async (tx) => {
-        const portfolio = (await loadPortfolio(tx, p.id)) ?? {
-          cashPaise: season.starting_cash_paise,
-          positions: new Map(),
-        };
-        const res = executeActions(pd.actions, portfolio, {
-          universe: new Set(pd.status === 'RETIRED' ? symbols : universe),
-          fillQuotes,
-          valuationPrice: (sym) => valuation.get(sym) ?? null,
-          suspended: pd.status === 'RETIRED' ? new Set() : suspended,
-          soldToday: await soldToday(tx, p.id, tradingDate),
-          maxActions:
-            pd.status === 'RETIRED'
-              ? Math.max(d.arena.limits.maxActionsPerRound, pd.actions.length)
-              : d.arena.limits.maxActionsPerRound,
-          maxWeightPct: d.arena.limits.maxWeightPct,
-          slippageBps: d.arena.limits.slippageBps,
-          fees: d.fees,
-        });
-        const drafts: LedgerDraft[] = [];
-        for (const o of res.outcomes) {
-          const actionId = randomUUID();
-          await tx.query(
-            `INSERT INTO actions (id, decision_id, position, side_raw, symbol_raw, quantity_raw, why, side, symbol, quantity, status, reject_code, reject_detail, model_fault)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-            [
-              actionId,
-              pd.decisionId,
-              o.position,
-              o.sideRaw,
-              o.symbolRaw,
-              o.quantityRaw === undefined ? null : JSON.stringify(o.quantityRaw),
-              o.why,
-              o.side,
-              o.symbol,
-              o.quantity,
-              o.status,
-              o.rejectCode,
-              o.rejectDetail,
-              o.modelFault,
-            ],
-          );
-          if (o.fill) {
-            drafts.push(
-              tradeDraft(
-                {
-                  id: randomUUID(),
-                  seasonId: season.id,
-                  participantId: p.id,
-                  roundId,
-                  occurredAt: fillSnap.finishedAt,
-                  revealAt,
-                },
-                {
-                  actionId,
-                  side: o.side!,
-                  symbol: o.symbol!,
-                  quantity: o.quantity!,
-                  pricePaise: o.fill.pricePaise,
-                  priceSource: o.fill.priceSource,
-                  snapshotId: fillSnap.id,
-                  grossPaise: o.fill.grossPaise,
-                  charges: o.fill.charges,
-                  chargesTotalPaise: o.fill.chargesTotalPaise,
-                  cashDeltaPaise: o.fill.cashDeltaPaise,
-                  cashAfterPaise: o.fill.cashAfterPaise,
-                  positionAfter: o.fill.positionAfter,
-                  avgCostAfterPaise: o.fill.avgCostAfterPaise,
-                  realizedPnlPaise: o.fill.realizedPnlPaise,
-                },
-              ),
-            );
-          }
-        }
-        if (pd.status === 'RETIRED' && res.state.positions.size === 0) {
-          drafts.push(
-            adjustDraft(
-              {
-                id: randomUUID(),
-                seasonId: season.id,
-                participantId: p.id,
-                roundId,
-                occurredAt: fillSnap.finishedAt,
-                revealAt,
-              },
-              {
-                type: 'RETIRE',
-                symbol: null,
-                quantityDelta: null,
-                grossPaise: 0n,
-                cashDeltaPaise: 0n,
-                cashAfterPaise: res.state.cashPaise,
-                positionAfter: null,
-                avgCostAfterPaise: null,
-                note: 'Retired: holdings sold; final value is cash.',
-              },
-            ),
-          );
-        }
-        const entries = await appendLedger(tx, drafts);
-        await applyPositions(tx, entries);
-        return res.outcomes;
-      });
-      s.participants.push({
-        slot: p.slot,
-        status: pd.status,
-        latencyMs: pd.record?.latencyMs ?? null,
-        costUsd: pd.record?.costUsd ?? null,
-        actions: describe(outcomes),
-      });
-    } catch (e) {
-      degraded = true;
-      d.log.error({ err: e, participant: p.id }, 'execution transaction failed');
-      await d.db.query(
-        "UPDATE decisions SET status = 'EXECUTION_FAILED', error_detail = $2 WHERE id = $1",
-        [pd.decisionId, `execution failed: ${(e as Error).message}`],
-      );
-      await incident(d, s, {
-        key: `exec:${roundId}:${p.slot}`,
-        severity: 'critical',
-        title: `Recording failed for ${p.slot}`,
-        detail: (e as Error).message,
-        publicMessage: 'Not executed: recording failed.',
-        scope: 'participant',
-        participantId: p.id,
-      });
-      s.participants.push({
-        slot: p.slot,
-        status: 'EXECUTION_FAILED',
-        latencyMs: null,
-        costUsd: null,
-        actions: '—',
-      });
-    }
+    const retired = pd.status === 'RETIRED';
+    const outcomes = await executeAndRecord(
+      d,
+      s,
+      season,
+      tradingDate,
+      roundId,
+      pd,
+      fillSnap,
+      revealAt,
+      {
+        universe: new Set(retired ? symbols : universe),
+        fillQuotes,
+        valuationPrice: (sym) => valuation.get(sym) ?? null,
+        suspended: retired ? new Set() : suspended,
+        ...tradingLimits(d.arena),
+        maxActions: retired
+          ? Math.max(d.arena.limits.maxActionsPerRound, pd.actions.length)
+          : d.arena.limits.maxActionsPerRound,
+        forced: retired,
+      },
+    );
+    if (!outcomes) degraded = true;
+    s.participants.push({
+      slot: p.slot,
+      status: outcomes ? pd.status : 'EXECUTION_FAILED',
+      latencyMs: outcomes ? (pd.record?.latencyMs ?? null) : null,
+      costUsd: outcomes ? (pd.record?.costUsd ?? null) : null,
+      actions: outcomes ? describe(outcomes) : '—',
+    });
   }
   for (const pd of pending.filter((x) => x.status !== 'OK' && x.status !== 'RETIRED')) {
     s.participants.push({
@@ -804,6 +715,378 @@ export async function runRound(
     revealAt,
   );
   s.status = degraded ? 'PARTIAL' : 'COMPLETED';
+  return s;
+}
+
+/** Engine-generated orders that close every open position: SELL a long, BUY back a short. */
+export function closingActions(
+  portfolio: PortfolioState,
+  why: string,
+): { side: 'BUY' | 'SELL'; symbol: string; quantity: number; why: string }[] {
+  return [...portfolio.positions.entries()]
+    .filter(([, pos]) => pos.quantity !== 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([symbol, pos]) => ({
+      side: pos.quantity > 0 ? 'SELL' : 'BUY',
+      symbol,
+      quantity: Math.abs(pos.quantity),
+      why,
+    }));
+}
+
+/** Rule limits for executing model and Monkey actions (SPEC §3, §11.1). */
+export function tradingLimits(arena: Deps['arena']) {
+  return {
+    maxActions: arena.limits.maxActionsPerRound,
+    maxWeightPct: arena.limits.maxWeightPct,
+    slippageBps: arena.limits.slippageBps,
+    allowShort: arena.product === 'intraday_long_short',
+    maxGrossExposurePct: arena.limits.maxGrossExposurePct,
+  };
+}
+
+/**
+ * Executes one participant's actions and writes the actions, ledger entries and positions in one
+ * transaction (SPEC §11.1 step 5). Returns null, after marking the decision EXECUTION_FAILED and
+ * raising an incident, if the transaction fails.
+ */
+async function executeAndRecord(
+  d: Deps,
+  s: RoundSummary,
+  season: SeasonRow,
+  tradingDate: string,
+  roundId: string,
+  pd: Pending,
+  fillSnap: Snapshot,
+  revealAt: Date,
+  ctx: Omit<ExecutionContext, 'fees' | 'soldToday'>,
+): Promise<ActionOutcome[] | null> {
+  const p = pd.participant;
+  try {
+    return await withTransaction(d.db, async (tx) => {
+      const portfolio = (await loadPortfolio(tx, p.id)) ?? {
+        cashPaise: season.starting_cash_paise,
+        positions: new Map(),
+      };
+      const res = executeActions(pd.actions, portfolio, {
+        ...ctx,
+        soldToday: await soldToday(tx, p.id, tradingDate),
+        fees: d.fees,
+      });
+      const drafts: LedgerDraft[] = [];
+      for (const o of res.outcomes) {
+        const actionId = randomUUID();
+        await tx.query(
+          `INSERT INTO actions (id, decision_id, position, side_raw, symbol_raw, quantity_raw, why, side, symbol, quantity, status, reject_code, reject_detail, model_fault, exit_plan)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+          [
+            actionId,
+            pd.decisionId,
+            o.position,
+            o.sideRaw,
+            o.symbolRaw,
+            o.quantityRaw === undefined ? null : JSON.stringify(o.quantityRaw),
+            o.why,
+            o.side,
+            o.symbol,
+            o.quantity,
+            o.status,
+            o.rejectCode,
+            o.rejectDetail,
+            o.modelFault,
+            o.exitPlan,
+          ],
+        );
+        if (o.fill) {
+          drafts.push(
+            tradeDraft(
+              {
+                id: randomUUID(),
+                seasonId: season.id,
+                participantId: p.id,
+                roundId,
+                occurredAt: fillSnap.finishedAt,
+                revealAt,
+              },
+              {
+                actionId,
+                side: o.side!,
+                symbol: o.symbol!,
+                quantity: o.quantity!,
+                pricePaise: o.fill.pricePaise,
+                priceSource: o.fill.priceSource,
+                snapshotId: fillSnap.id,
+                grossPaise: o.fill.grossPaise,
+                charges: o.fill.charges,
+                chargesTotalPaise: o.fill.chargesTotalPaise,
+                cashDeltaPaise: o.fill.cashDeltaPaise,
+                cashAfterPaise: o.fill.cashAfterPaise,
+                positionAfter: o.fill.positionAfter,
+                avgCostAfterPaise: o.fill.avgCostAfterPaise,
+                realizedPnlPaise: o.fill.realizedPnlPaise,
+              },
+            ),
+          );
+        }
+      }
+      if (pd.status === 'RETIRED' && res.state.positions.size === 0) {
+        drafts.push(
+          adjustDraft(
+            {
+              id: randomUUID(),
+              seasonId: season.id,
+              participantId: p.id,
+              roundId,
+              occurredAt: fillSnap.finishedAt,
+              revealAt,
+            },
+            {
+              type: 'RETIRE',
+              symbol: null,
+              quantityDelta: null,
+              grossPaise: 0n,
+              cashDeltaPaise: 0n,
+              cashAfterPaise: res.state.cashPaise,
+              positionAfter: null,
+              avgCostAfterPaise: null,
+              note: 'Retired: holdings sold; final value is cash.',
+            },
+          ),
+        );
+      }
+      const entries = await appendLedger(tx, drafts);
+      await applyPositions(tx, entries);
+      return res.outcomes;
+    });
+  } catch (e) {
+    d.log.error({ err: e, participant: p.id }, 'execution transaction failed');
+    await d.db.query(
+      "UPDATE decisions SET status = 'EXECUTION_FAILED', error_detail = $2 WHERE id = $1",
+      [pd.decisionId, `execution failed: ${(e as Error).message}`],
+    );
+    await incident(d, s, {
+      key: `exec:${roundId}:${p.slot}`,
+      severity: 'critical',
+      title: `Recording failed for ${p.slot}`,
+      detail: (e as Error).message,
+      publicMessage: 'Not executed: recording failed.',
+      scope: 'participant',
+      participantId: p.id,
+    });
+    return null;
+  }
+}
+
+export interface SquareOffOptions {
+  /** End-of-day fallback: close at this (valuation) snapshot instead of taking a fresh fill snapshot. */
+  snapshot?: Snapshot;
+}
+
+/**
+ * The intraday square-off (SPEC §12.3a). Closes every open position at a fresh fill snapshot: longs
+ * are sold at the best bid and shorts bought back at the best ask, with normal charges. It is recorded
+ * as a round of kind 'square_off' with an engine decision (status SQUARE_OFF) for each participant that
+ * had positions. A position without a valid price stays open: the next tick tries again, and end of day
+ * closes whatever is left at the day-end last traded price.
+ */
+export async function runSquareOff(
+  d: Deps,
+  season: SeasonRow,
+  tradingDate: string,
+  trigger: 'cron' | 'manual',
+  opts: SquareOffOptions = {},
+): Promise<RoundSummary> {
+  const intraday = d.arena.intraday;
+  if (d.arena.product !== 'intraday_long_short' || !intraday)
+    throw new Error('the square-off only applies to the intraday product');
+  const now = d.now();
+  const slot = istNow(now).toFormat('HH:mm');
+  const s: RoundSummary = {
+    roundId: null,
+    slot: `square-off ${slot}`,
+    status: 'NOT_RUN',
+    reason: null,
+    participants: [],
+    incidents: [],
+  };
+  const parts = await loadParticipants(d.db, season.id);
+  const open: { participant: ParticipantRow; portfolio: PortfolioState }[] = [];
+  for (const p of parts.filter((x) => x.kind !== 'index')) {
+    const portfolio = await loadPortfolio(d.db, p.id);
+    if (portfolio && portfolio.positions.size) open.push({ participant: p, portfolio });
+  }
+  if (!open.length) {
+    s.status = 'NOTHING_OPEN';
+    return s;
+  }
+  const roundId = randomUUID();
+  const ins = await d.db.query(
+    `INSERT INTO rounds (id, season_id, trading_date, slot_time, scheduled_at, started_at, status, trigger, kind)
+     VALUES ($1,$2,$3,$4,$5,$6,'RUNNING',$7,'square_off') ON CONFLICT (season_id, trading_date, slot_time) DO NOTHING RETURNING id`,
+    [
+      roundId,
+      season.id,
+      tradingDate,
+      slot,
+      slotInstant(tradingDate, intraday.squareOffFrom),
+      now,
+      trigger,
+    ],
+  );
+  if (!ins.rowCount) {
+    s.status = 'OWNED_ELSEWHERE';
+    s.reason = 'another run already owns this minute';
+    return s;
+  }
+  s.roundId = roundId;
+  const delay = ms(d.arena.season.publicDelayMinutes);
+  const late = minutesOfDay(now) >= minutesOf(intraday.squareOffDeadline);
+  const held = await heldSymbols(d.db, season.id);
+  const symbols = [...new Set([...universeSymbols(d), ...held])].sort();
+
+  let snap: Snapshot | null = opts.snapshot ?? null;
+  let failure: string | null = null;
+  if (!snap) {
+    try {
+      const provider = d.provider();
+      const mapping = await mappingFromDb(d.db, d.universe, d.arena, held);
+      const session = await provider.login();
+      snap = await snapshotFor({
+        session,
+        source: provider.source,
+        purpose: 'fill',
+        mapping,
+        arena: d.arena,
+        now: d.now,
+      });
+      await persistSnapshot(d.db, snap);
+    } catch (e) {
+      if (!(e instanceof DataError)) throw e;
+      failure = `${e.kind}: ${e.message}`;
+    }
+  }
+  if (!snap || snap.verdict.status === 'rejected') {
+    const why =
+      failure ??
+      (snap?.verdict.status === 'rejected'
+        ? `${snap.verdict.reason}: ${snap.verdict.detail}`
+        : 'no snapshot');
+    await incident(d, s, {
+      key: `squareoff:${tradingDate}`,
+      severity: late ? 'critical' : 'warn',
+      title: `Square-off at ${slot} could not get prices`,
+      detail: `${why}. The next tick tries again; end of day closes anything still open at the day-end last traded price.`,
+      publicMessage: 'Square-off delayed: market data was incomplete.',
+      scope: 'arena',
+    });
+    if (snap)
+      await d.db.query('UPDATE rounds SET fill_snapshot_id = $2 WHERE id = $1', [roundId, snap.id]);
+    await finish(
+      d,
+      roundId,
+      'SKIPPED_DATA',
+      'square-off could not get prices',
+      new Date(now.getTime() + delay),
+    );
+    s.status = 'SKIPPED_DATA';
+    s.reason = why;
+    return s;
+  }
+  await d.db.query('UPDATE rounds SET fill_snapshot_id = $2 WHERE id = $1', [roundId, snap.id]);
+  const revealAt = new Date(snap.finishedAt.getTime() + delay);
+  const fillQuotes = new Map(
+    snap.quotes
+      .filter((q) => q.valid)
+      .map((q) => [
+        q.symbol,
+        {
+          ltpPaise: q.ltpPaise!,
+          bidPaise: q.bidPaise,
+          askPaise: q.askPaise,
+          depthAvailable: q.depthAvailable,
+        },
+      ]),
+  );
+  const valuation = await pricesWithFallback(d.db, snap, symbols);
+  const why = `Square-off: intraday positions are closed by ${intraday.squareOffDeadline} IST.`;
+  const reasoning = opts.snapshot
+    ? `End-of-day square-off: no live price was available before ${intraday.squareOffDeadline} IST, so the remaining positions are closed at the day-end last traded price.`
+    : `Square-off at ${slot} IST: every open position is closed (intraday rule; nothing is held overnight).`;
+  let degraded = false;
+  for (const o of open) {
+    const actions = closingActions(o.portfolio, why);
+    const decisionId = await insertDecision(d.db, roundId, o.participant, {
+      status: 'SQUARE_OFF',
+      reasoning,
+      parsed: { content: null, liquidation: actions },
+    });
+    const pd: Pending = {
+      participant: o.participant,
+      decisionId,
+      status: 'SQUARE_OFF',
+      actions,
+      record: null,
+    };
+    const outcomes = await executeAndRecord(
+      d,
+      s,
+      season,
+      tradingDate,
+      roundId,
+      pd,
+      snap,
+      revealAt,
+      {
+        universe: new Set(symbols),
+        fillQuotes,
+        valuationPrice: (sym) => valuation.get(sym) ?? null,
+        suspended: new Set(),
+        ...tradingLimits(d.arena),
+        maxActions: Math.max(1, actions.length),
+        forced: true,
+      },
+    );
+    if (!outcomes) degraded = true;
+    s.participants.push({
+      slot: o.participant.slot,
+      status: outcomes ? 'SQUARE_OFF' : 'EXECUTION_FAILED',
+      latencyMs: null,
+      costUsd: null,
+      actions: outcomes ? describe(outcomes) : '—',
+    });
+  }
+  await writeMarks(d, season, parts, snap, valuation, 'round', roundId, revealAt);
+  const left = await heldSymbols(d.db, season.id);
+  const status = left.length || degraded ? 'PARTIAL' : 'COMPLETED';
+  const reason = left.length
+    ? `still open (no price or recording failed): ${left.join(', ')}`
+    : degraded
+      ? 'an execution transaction failed'
+      : null;
+  if (left.length)
+    await incident(d, s, {
+      key: `squareoff:${tradingDate}`,
+      severity: late || opts.snapshot ? 'critical' : 'warn',
+      title: `Square-off at ${slot} left positions open`,
+      detail: `${reason}. ${opts.snapshot ? 'These positions are held overnight; the next square-off closes them.' : 'The next tick tries again.'}`,
+      publicMessage: 'Some positions could not be closed at the square-off yet.',
+      scope: 'arena',
+    });
+  else {
+    await resolveIncident(d.db, `squareoff:${tradingDate}`);
+    if (late)
+      await incident(d, s, {
+        key: `squareoff-late:${tradingDate}`,
+        severity: 'warn',
+        title: `Square-off finished after ${intraday.squareOffDeadline} IST`,
+        detail: `All positions were closed at ${slot} IST.`,
+        publicMessage: `Today's square-off finished at ${slot} IST, after ${intraday.squareOffDeadline}.`,
+        scope: 'arena',
+      });
+  }
+  await finish(d, roundId, status, reason, revealAt);
+  s.status = status;
+  s.reason = reason;
   return s;
 }
 

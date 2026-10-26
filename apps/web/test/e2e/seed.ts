@@ -12,7 +12,7 @@ import {
   type ModelBehaviour,
 } from '../../../../packages/engine/test/helpers/world';
 import { startSeason } from '../../../../packages/engine/src/ops/admin';
-import { runRound } from '../../../../packages/engine/src/round/runner';
+import { runRound, runSquareOff } from '../../../../packages/engine/src/round/runner';
 import { runEndOfDay } from '../../../../packages/engine/src/round/eod';
 import { exportDay } from '../../../../packages/engine/src/round/export';
 import { currentSeason } from '../../../../packages/engine/src/round/store';
@@ -33,29 +33,57 @@ function urlFor(db: string, user?: string): string {
   return u.toString();
 }
 
-// Deterministic, varied behaviour per model and round: buys, sells, a rejected sell, an unreadable answer, a timeout.
+// Deterministic, varied behaviour per model and round: buys, sells, a short, a rejected sell, an
+// unreadable answer, a timeout. Every answer states a strategy, and every action a reason and an exit plan.
 const behaviour: ModelBehaviour = (model, n) => {
   const slot = model.split('/')[0]!;
   const syms = ['AAA', 'BBB', 'CCC', 'DDD', 'EEE', 'FFF', 'GGG', 'HHH'];
   const pick = syms[(n + slot.length) % syms.length]!;
+  const strategy = `${slot}: momentum. Buy stocks breaking out on volume, short the weakest; risk 1% per trade.`;
+  if (slot === 'openai' && n === 2)
+    return answer(model, {
+      strategy,
+      reasoning: `${slot}: ${pick} is the weakest stock today. Shorting a small position.`,
+      actions: [
+        {
+          side: 'SELL',
+          symbol: pick,
+          quantity: 2,
+          why: `${pick} fell below its opening range on heavy volume.`,
+          exit_plan: 'Buy back 1% lower, or if it reclaims the open.',
+        },
+      ],
+      note_to_self: `Short ${pick}.`,
+    });
   if (slot === 'google' && n === 3)
     return answer(model, 'I think the market looks interesting today.');
   if (slot === 'meta' && n === 4)
     return { status: 503, body: { error: { code: 503, message: 'No available provider' } } };
   if (slot === 'deepseek' && n === 2)
     return answer(model, {
+      strategy,
       reasoning: 'Trim a stock I do not hold.',
-      actions: [{ side: 'SELL', symbol: 'HDFCBANK', quantity: 40, why: 'Take profit.' }],
+      actions: [
+        {
+          side: 'SELL',
+          symbol: 'HDFCBANK',
+          quantity: 40,
+          why: 'Take profit.',
+          exit_plan: 'None.',
+        },
+      ],
       note_to_self: 'Check holdings first.',
     });
   if (n % 3 === 0)
     return answer(model, {
+      strategy,
       reasoning: `${slot}: holding steady after round ${n}.\nBanks flat, IT firm.`,
       actions: [],
       note_to_self: `Round ${n}: held.`,
     });
   if (n % 4 === 0)
     return answer(model, {
+      strategy,
       reasoning: `${slot}: taking some profit.`,
       actions: [
         {
@@ -63,13 +91,23 @@ const behaviour: ModelBehaviour = (model, n) => {
           symbol: syms[(n - 1 + slot.length) % syms.length],
           quantity: 1,
           why: 'Lock in gains.',
+          exit_plan: 'Done: this closes part of the position.',
         },
       ],
       note_to_self: '',
     });
   return answer(model, {
+    strategy,
     reasoning: `${slot}: ${pick} looks strong on relative volume. Adding a small position.\nKeeping cash for later rounds.`,
-    actions: [{ side: 'BUY', symbol: pick, quantity: 3, why: `${pick} relative strength.` }],
+    actions: [
+      {
+        side: 'BUY',
+        symbol: pick,
+        quantity: 3,
+        why: `${pick} relative strength.`,
+        exit_plan: 'Sell 2% higher, or 1% below the entry.',
+      },
+    ],
     note_to_self: `Bought ${pick}.`,
   });
 };
@@ -91,7 +129,7 @@ async function main() {
 
   const models = testModels();
   if (scenario === 'empty') {
-    const w = makeWorld(urlFor(dbName, 'engine_rw'), new Date(), behaviour, models);
+    const w = makeWorld(urlFor(dbName, 'engine_rw'), new Date(), behaviour, models, 'intraday');
     const future = new Date(Date.now() + 9 * 86_400_000);
     let start = future.toISOString().slice(0, 10);
     while (!w.deps.calendar.isTradingDay(start)) start = w.deps.calendar.nextTradingDay(start);
@@ -111,11 +149,13 @@ async function main() {
   }
 
   const days = ['2026-10-19', '2026-10-20'];
+  // The committed rules: intraday long-short, ₹20 brokerage, square-off from 15:00.
   const w = makeWorld(
     urlFor(dbName, 'engine_rw'),
     new Date(`${days[0]}T09:30:30+05:30`),
     behaviour,
     models,
+    'intraday',
   );
   await startSeason(
     w.db,
@@ -145,6 +185,8 @@ async function main() {
       await runRound(w.deps, season, day, slot, 'cron');
     }
     if (di === 0) {
+      w.clock.t = new Date(`${day}T15:02:00+05:30`);
+      await runSquareOff(w.deps, (await currentSeason(w.db, 'shadow', day))!, day, 'cron');
       w.clock.t = new Date(`${day}T15:42:00+05:30`);
       await runEndOfDay(w.deps, (await currentSeason(w.db, 'shadow', day))!, day);
       await exportDay(w.db, day, w.deps.exportDir, true);
@@ -159,10 +201,10 @@ async function main() {
     await w.db.query(
       "INSERT INTO incidents (id, key, severity, title, detail, public_message, scope, started_at) VALUES (gen_random_uuid(), 'llm:credits', 'critical', 'Out of credit', 'HTTP 402', 'Rounds are paused: the arena is out of API credit.', 'arena', now())",
     );
-    // Planted failure for "Check this trade": tamper with one revealed BUY (test database only).
+    // Planted failure for "Check this trade": tamper with the first revealed trade, #7 (test database only).
     await owner.query('ALTER TABLE ledger DISABLE TRIGGER ledger_no_update');
     await owner.query(
-      "UPDATE ledger SET price_paise = price_paise + 100 WHERE seq = (SELECT min(seq) FROM ledger WHERE entry_type = 'BUY')",
+      "UPDATE ledger SET price_paise = price_paise + 100 WHERE seq = (SELECT min(seq) FROM ledger WHERE entry_type IN ('BUY','SELL'))",
     );
     await owner.query('ALTER TABLE ledger ENABLE TRIGGER ledger_no_update');
   }

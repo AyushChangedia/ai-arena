@@ -11,8 +11,14 @@ import type { SeasonRow } from './store';
 export async function abortStaleRounds(d: Deps): Promise<string[]> {
   const now = d.now();
   const cutoff = new Date(now.getTime() - d.arena.schedule.staleRunningMinutes * 60_000);
-  const stale = await d.db.query<{ id: string; season_id: string; d: string; t: string }>(
-    "SELECT id, season_id, to_char(trading_date,'YYYY-MM-DD') AS d, to_char(slot_time,'HH24:MI') AS t FROM rounds WHERE status = 'RUNNING' AND started_at < $1",
+  const stale = await d.db.query<{
+    id: string;
+    season_id: string;
+    d: string;
+    t: string;
+    kind: string;
+  }>(
+    "SELECT id, season_id, to_char(trading_date,'YYYY-MM-DD') AS d, to_char(slot_time,'HH24:MI') AS t, kind FROM rounds WHERE status = 'RUNNING' AND started_at < $1",
     [cutoff],
   );
   const reveal = new Date(now.getTime() + d.arena.season.publicDelayMinutes * 60_000);
@@ -32,7 +38,8 @@ export async function abortStaleRounds(d: Deps): Promise<string[]> {
         "UPDATE decisions SET status = 'MISSED_ABORTED', error_detail = coalesce(error_detail, 'round aborted') WHERE round_id = $1 AND participant_id = $2",
         [r.id, p.id],
       );
-      if (!upd.rowCount) {
+      // A square-off only has decisions for participants with open positions.
+      if (!upd.rowCount && r.kind !== 'square_off') {
         await d.db.query(
           "INSERT INTO decisions (id, round_id, participant_id, status, error_detail) VALUES ($1,$2,$3,'MISSED_ABORTED','round aborted before this participant was recorded')",
           [randomUUID(), r.id, p.id],

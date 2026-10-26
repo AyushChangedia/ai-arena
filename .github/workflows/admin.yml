@@ -7,7 +7,17 @@ on:
         type: choice
         required: true
         options:
-          [pause, resume, retire, corp-action, clear-flag, resolve-incident, start-season, correct]
+          [
+            pause,
+            resume,
+            retire,
+            corp-action,
+            clear-flag,
+            resolve-incident,
+            start-season,
+            end-season,
+            correct,
+          ]
       reason:
         description: Why (written to the public admin log)
         required: true
@@ -33,7 +43,7 @@ on:
         description: corp-action — source URL (NSE/BSE announcement)
         required: false
       id:
-        description: resolve-incident — incident id; start-season — season id (S0, S1 …)
+        description: resolve-incident — incident id; start-season / end-season — season id (S0, P1, S1 …)
         required: false
       start:
         description: start-season — first trading day YYYY-MM-DD

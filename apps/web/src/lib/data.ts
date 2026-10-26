@@ -91,7 +91,8 @@ export interface ModelData {
   participant: read.Participant;
   standing: Standing | null;
   holdings: read.HoldingRow[];
-  trades: read.LedgerRow[];
+  /** Newest first, each with the model's reason and exit plan (or the square-off's). */
+  trades: (read.LedgerRow & { reason: read.TradeNote | null })[];
   decisions: (read.DecisionRow & { tradingDate: string; slotTime: string })[];
   blunders: read.Blunder[];
   strip: Awaited<ReturnType<typeof read.getRecentStatuses>>;
@@ -111,9 +112,10 @@ export async function loadModel(slug: string): Promise<Loaded<ModelData | null>>
     const participant = a.data.participants.find((p) => p.slot === slug);
     if (!participant || !a.data.season) return null;
     const sql = await getSql();
-    const [holdings, ledger, decisions, blunders, strip, counts] = await Promise.all([
+    const [holdings, ledger, notes, decisions, blunders, strip, counts] = await Promise.all([
       read.getHoldings(sql, [participant.id]),
       read.getParticipantLedger(sql, participant.id),
+      read.getTradeNotes(sql, participant.id),
       read.getParticipantDecisions(sql, participant.id, 60),
       read.getBlunders(sql, a.data.season.id, 50, participant.id),
       read.getRecentStatuses(sql, a.data.season.id, 60),
@@ -124,7 +126,10 @@ export async function loadModel(slug: string): Promise<Loaded<ModelData | null>>
       participant,
       standing: a.data.standings.find((s) => s.participant.id === participant.id) ?? null,
       holdings,
-      trades: ledger.filter((l) => l.entryType === 'BUY' || l.entryType === 'SELL').reverse(),
+      trades: ledger
+        .filter((l) => l.entryType === 'BUY' || l.entryType === 'SELL')
+        .reverse()
+        .map((l) => ({ ...l, reason: (l.actionId && notes.get(l.actionId)) || null })),
       decisions,
       blunders,
       strip,
