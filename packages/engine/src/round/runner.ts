@@ -54,6 +54,8 @@ export interface RoundSummary {
   slot: string;
   status: string;
   reason: string | null;
+  /** Why a round was skipped, in more words (counts and causes, never prices); for the run summary. */
+  detail?: string | null;
   participants: {
     slot: string;
     status: DecisionStatus | 'NONE';
@@ -318,6 +320,7 @@ export async function runRound(
     await finish(d, roundId, 'SKIPPED_DATA', reason, new Date(d.now().getTime() + delay));
     s.status = 'SKIPPED_DATA';
     s.reason = reason;
+    s.detail = detail;
     return s;
   };
 

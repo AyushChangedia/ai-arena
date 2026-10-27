@@ -136,12 +136,22 @@ export function snapshotVerdict(
       detail: `index quote invalid: ${index?.invalidReason ?? 'missing'}`,
     };
   }
-  const invalid = quotes.filter((q) => !q.valid).length;
-  if (invalid > rules.maxInvalidQuotesPerSnapshot) {
+  const bad = quotes.filter((q) => !q.valid);
+  if (bad.length > rules.maxInvalidQuotesPerSnapshot) {
+    // Count by reason (no prices), so a skipped round can be diagnosed from the run summary.
+    const byReason = new Map<string, number>();
+    for (const q of bad) {
+      const r = q.invalidReason ?? 'unknown';
+      byReason.set(r, (byReason.get(r) ?? 0) + 1);
+    }
+    const reasons = [...byReason]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .map(([r, n]) => `${r} ${n}`)
+      .join(', ');
     return {
       status: 'rejected',
       reason: 'DATA_DEGRADED',
-      detail: `${invalid} of ${quotes.length} quotes invalid`,
+      detail: `${bad.length} of ${quotes.length} quotes invalid (${reasons})`,
     };
   }
   return { status: 'ok' };

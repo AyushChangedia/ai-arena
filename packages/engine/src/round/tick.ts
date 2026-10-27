@@ -272,6 +272,7 @@ function render(
   for (const n of notes) parts.push('', n);
   for (const r of rounds) {
     parts.push('', `### Round ${r.slot}: ${r.status}${r.reason ? ` (${r.reason})` : ''}`, '');
+    if (r.detail) parts.push(`Detail: ${r.detail}`, '');
     if (r.participants.length) {
       parts.push(
         mdTable(

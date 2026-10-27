@@ -125,6 +125,22 @@ describe('snapshot verdict', () => {
       detail: expect.stringMatching(/missing/),
     });
   });
+  it('says why quotes were invalid, by count and cause (no prices)', () => {
+    const mixed = good.map((x, i) =>
+      i < 4
+        ? { ...x, valid: false, invalidReason: 'stale' }
+        : i < 6
+          ? { ...x, valid: false, invalidReason: 'missing ltp' }
+          : i < 7
+            ? { ...x, valid: false, invalidReason: null }
+            : x,
+    );
+    expect(snapshotVerdict(mixed, idx, rules, ctx)).toEqual({
+      status: 'rejected',
+      reason: 'DATA_DEGRADED',
+      detail: '7 of 50 quotes invalid (stale 4, missing ltp 2, unknown 1)',
+    });
+  });
   it('detects an unscheduled closure from previous-day exchange times', () => {
     const yesterday = new Date('2026-10-30T10:00:00Z');
     const stale = good.map((x) => ({ ...x, exchangeTime: yesterday }));

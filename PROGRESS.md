@@ -120,7 +120,23 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
   Not verified against the live models until the next round or a `decide-all` run. Raising `max_tokens` could hit a provider's output limit; if a model then starts failing with HTTP 400 or 404, lower it.
 
-- **Shadow days for SETUP.md Part F (3 needed): 1 of 3 recorded.**
+- **Shadow days for SETUP.md Part F (3 needed): 2 of 3 recorded.**
+  - **Day 2 = P1 day 1, Tue 27 Oct 2026, the first intraday day.** Reconciliation ok, every position closed by the square-off.
+    - Ticks: the cron-job.org timer started all 48 runs, every 10 minutes from 08:32 to 16:22 IST, all green. GitHub's own schedule also fired once, at 14:16.
+    - Pre-market job: ran at 08:32 (about 11 minutes).
+    - 09:30: SKIPPED_DATA, DATA_DEGRADED (the decision snapshot failed validation). The cause isn't in the run summary, which printed only the code. Fixed for next time: the summary now prints the detail, and a DATA_DEGRADED detail counts the invalid quotes by cause (`packages/engine/src/data/validate.ts`, tests in `validate.test.ts` and `round.int.test.ts`).
+    - 11:00: Nemotron bought 20 TATACONSUM at 982.70; Flint bought 10 DRREDDY at 1,317.70; Xing bought 4 SHRIRAMFIN at 840.00 and 3 TATACONSUM at 982.70.
+    - 12:30: Nemotron sold its 20 TATACONSUM at 978.75 (realised −₹108.22) and stayed flat; Xing sold its 3 TATACONSUM (−₹36.29).
+    - 14:00: Xing sold 3 TATACONSUM it no longer held, which opened a 3-share short. Its reason ("frees capital") shows it thought it still held them. It also sold its 4 SHRIRAMFIN (−₹77.75), which closed its long, although its strategy said it would "add a short". Both followed the net-position rules as published.
+    - Square-off at 15:02 IST: COMPLETED. Flint's 10 DRREDDY sold at the bid, 1,316.40 (−₹40.38); Xing's short bought back at the ask, 994.80 (−₹44.95). The 15:12 tick had nothing left to close.
+    - End of day 15:42: reconciliation ok. Export and anchor: commit `data: 2026-10-27`, 15 entries (seq 9–23), head `67b2d3ec…`. `pnpm verify-ledger --file` on the exported ledger → OK, same head as the anchor.
+  - Closing values: Gemma and the Monkey ₹1,00,000 (no trades); Nifty 50 ₹99,938.94; Flint ₹99,935.13; Nemotron ₹99,866.86; Xing ₹99,768.94. Most of the losses are charges: about ₹24 per order with the ₹20 brokerage (Xing paid ₹144.86 over 6 orders).
+  - Strategies: Nemotron, Xing and Flint gave a strategy every time they answered, and an exit plan for every action. Nemotron followed its own exit rule (out before 14:30).
+  - Model health:
+    - Gemma: HTTP 429 (busy) in every round, for the second day running; a critical "missed 3 rounds in a row" incident is open.
+    - Flint: OK at 11:00, HTTP 429 at 12:30 and 14:00.
+    - Nemotron and Xing: OK in every round.
+    - The Monkey held in every round (coin flips).
   - **Day 1, Mon 26 Oct 2026.** Every slot was completed or explained, and reconciliation was ok.
     - 09:30: MISSED_SCHEDULE. No tick ran until a manual dispatch at 10:07; see below.
     - 11:00, 12:30, 14:00: completed (manual dispatches).

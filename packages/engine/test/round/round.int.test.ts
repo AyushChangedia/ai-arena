@@ -223,6 +223,8 @@ describe('failure modes produce the statuses in SPEC §13', () => {
     const season = (await currentSeason(w.db, 'shadow', DAY))!;
     const s = await runRound(w.deps, season, DAY, '11:30', 'cron');
     expect([s.status, s.reason]).toEqual(['SKIPPED_DATA', 'DATA_DEGRADED']);
+    // The run summary says why, by count and cause.
+    expect(s.detail).toBe('6 of 8 quotes invalid (schema: ltp Required 6)');
     w.market.invalid = new Set(['HHH']);
     w.clock.t = at('12:00');
     const s2 = await runRound(w.deps, season, DAY, '12:00', 'cron');
