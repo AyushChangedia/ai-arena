@@ -46,7 +46,8 @@
     "vixName": "India VIX",
     "instrumentMasterUrl": "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json",
     "apiRoot": "https://apiconnect.angelone.in",
-    "requestTimeoutSeconds": 20
+    "requestTimeoutSeconds": 20,
+    "quoteRetryDelaySeconds": 3
   },
   "llm": {
     "temperature": 0.3,

@@ -67,6 +67,8 @@ export const arenaConfigSchema = z
         instrumentMasterUrl: z.string().url(),
         apiRoot: z.string().url(),
         requestTimeoutSeconds: z.number().int().min(1),
+        // Wait before the one retry of a failed quote request (owner's decision, 2026-10-30).
+        quoteRetryDelaySeconds: z.number().min(0).max(30).default(3),
       })
       .strict(),
     llm: z

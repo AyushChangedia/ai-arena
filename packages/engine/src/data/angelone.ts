@@ -42,6 +42,10 @@ export interface AngelOptions {
   quoteBatchSize: number;
   quoteRequestsPerSecond: number;
   candleRequestsPerSecond: number;
+  /** Wait before the one retry of a failed quote request (SPEC §8.3). Default 3 s. */
+  quoteRetryDelayMs?: number;
+  /** Told about each quote retry, so the first failure is logged rather than lost. */
+  onQuoteRetry?: (message: string) => void;
   fetchImpl?: FetchLike;
   /** Records non-login responses verbatim (smoke.yml record-fixtures). Never called for login. */
   recorder?: (path: string, request: unknown, status: number, response: unknown) => void;
@@ -346,7 +350,7 @@ export class AngelOneProvider implements MarketDataProvider {
       jwt = await this.loginJwt();
     };
     // A secure call that re-logs in once if the session expired mid-round (SPEC §13 #3).
-    const secure = async (path: string, body: unknown): Promise<unknown> => {
+    const secureOnce = async (path: string, body: unknown): Promise<unknown> => {
       for (let i = 0; i < 2; i++) {
         const res = await this.post(path, body, jwt);
         const env = envelope.safeParse(res.json);
@@ -375,6 +379,29 @@ export class AngelOneProvider implements MarketDataProvider {
       }
       throw new DataError('DATA_SESSION_EXPIRED', 'session expired');
     };
+    // A failed quote request (an Angel One error reply such as AB4030, a network error or a
+    // timeout) is retried once after a short wait, so one bad reply doesn't skip the round
+    // (SPEC §8.3; the owner's decision, 2026-10-30). A changed shape or an expired session isn't.
+    const quoteRequest = async (body: unknown): Promise<unknown> => {
+      try {
+        return await secureOnce(ANGEL_PATHS.quote, body);
+      } catch (e) {
+        if (!(e instanceof DataError) || e.kind !== 'DATA_REQUEST_FAILED') throw e;
+        const delayMs = this.opts.quoteRetryDelayMs ?? 3000;
+        this.opts.onQuoteRetry?.(`${e.message}; retrying once in ${delayMs} ms`);
+        await (this.opts.wait ?? sleep)(delayMs);
+        await this.quoteLimiter.acquire();
+        try {
+          return await secureOnce(ANGEL_PATHS.quote, body);
+        } catch (e2) {
+          if (e2 instanceof DataError && e2.kind === 'DATA_REQUEST_FAILED')
+            throw new DataError('DATA_REQUEST_FAILED', `${e2.message} (after 1 retry)`, undefined, {
+              cause: e2,
+            });
+          throw e2;
+        }
+      }
+    };
 
     return {
       quotes: async (equities: Instrument[], indices: IndexInstrument[]): Promise<QuoteBatch> => {
@@ -388,10 +415,7 @@ export class AngelOneProvider implements MarketDataProvider {
         const seen = new Map<string, unknown>();
         for (const batch of chunk([...byToken.keys()], this.opts.quoteBatchSize)) {
           await this.quoteLimiter.acquire();
-          const data = await secure(ANGEL_PATHS.quote, {
-            mode: 'FULL',
-            exchangeTokens: { NSE: batch },
-          });
+          const data = await quoteRequest({ mode: 'FULL', exchangeTokens: { NSE: batch } });
           const parsed = quoteData.safeParse(data);
           if (!parsed.success) {
             const issue = parsed.error.issues[0];
@@ -436,7 +460,7 @@ export class AngelOneProvider implements MarketDataProvider {
         toDate: string,
       ): Promise<Candle[]> => {
         await this.candleLimiter.acquire();
-        const data = await secure(ANGEL_PATHS.candles, {
+        const data = await secureOnce(ANGEL_PATHS.candles, {
           exchange: 'NSE',
           symboltoken: inst.brokerToken,
           interval: 'ONE_DAY',

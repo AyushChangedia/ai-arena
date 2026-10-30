@@ -227,6 +227,83 @@ describe('Angel One provider (docs-example fixtures)', () => {
     ).rejects.toMatchObject({ kind: 'DATA_REQUEST_FAILED' });
   });
 
+  describe('one retry of a failed quote request (owner, 2026-10-30)', () => {
+    // The error reply Angel One sent at 09:30 on 29 Oct 2026 (code and message from that run's summary).
+    const ab4030 = {
+      body: {
+        status: false,
+        message: 'Unable to fetch market data',
+        errorcode: 'AB4030',
+        data: null,
+      },
+    };
+    const ok = {
+      body: {
+        status: true,
+        message: 'SUCCESS',
+        errorcode: '',
+        data: { fetched: [], unfetched: [] },
+      },
+    };
+    const nifty = [{ name: 'Nifty 50', brokerToken: '99926000', exchange: 'NSE' }];
+
+    it('retries once after the configured wait, and the round goes ahead', async () => {
+      const waits: number[] = [];
+      const told: string[] = [];
+      let tries = 0;
+      const f = route({
+        [ANGEL_PATHS.login]: () => ({ body: login }),
+        [ANGEL_PATHS.quote]: () => (++tries === 1 ? ab4030 : ok),
+      });
+      const s = await new AngelOneProvider(
+        creds,
+        opts(f.impl, {
+          quoteRetryDelayMs: 3000,
+          wait: async (ms: number) => void waits.push(ms),
+          onQuoteRetry: (m: string) => told.push(m),
+        }),
+      ).login();
+      await s.quotes([], nifty);
+      expect(f.calls.filter((c) => c.url.endsWith(ANGEL_PATHS.quote))).toHaveLength(2);
+      expect(waits).toContain(3000);
+      expect(told).toEqual([
+        '/rest/secure/angelbroking/market/v1/quote failed: AB4030 Unable to fetch market data; retrying once in 3000 ms',
+      ]);
+    });
+
+    it('a second failure fails the request (DATA_REQUEST_FAILED), with no third try', async () => {
+      const f = route({
+        [ANGEL_PATHS.login]: () => ({ body: login }),
+        [ANGEL_PATHS.quote]: () => ab4030,
+      });
+      const s = await new AngelOneProvider(creds, opts(f.impl)).login();
+      const err = await s.quotes([], nifty).catch((e: unknown) => e);
+      expect(err).toMatchObject({ kind: 'DATA_REQUEST_FAILED' });
+      expect((err as Error).message).toBe(
+        '/rest/secure/angelbroking/market/v1/quote failed: AB4030 Unable to fetch market data (after 1 retry)',
+      );
+      expect(f.calls.filter((c) => c.url.endsWith(ANGEL_PATHS.quote))).toHaveLength(2);
+    });
+
+    it('a network error is retried too; a changed response shape is not', async () => {
+      let n = 0;
+      const net = fakeFetch((c) => {
+        if (c.url.endsWith(ANGEL_PATHS.login)) return { body: login };
+        return ++n === 1 ? new TypeError('fetch failed') : ok;
+      });
+      const s = await new AngelOneProvider(creds, opts(net.impl)).login();
+      await s.quotes([], nifty);
+      expect(n).toBe(2);
+      const g = route({
+        [ANGEL_PATHS.login]: () => ({ body: login }),
+        [ANGEL_PATHS.quote]: () => ({ body: { unexpected: true } }),
+      });
+      const s2 = await new AngelOneProvider(creds, opts(g.impl)).login();
+      await expect(s2.quotes([], nifty)).rejects.toMatchObject({ kind: 'DATA_SHAPE_CHANGED' });
+      expect(g.calls.filter((c) => c.url.endsWith(ANGEL_PATHS.quote))).toHaveLength(1);
+    });
+  });
+
   it('parses daily candles into IST trading dates', async () => {
     const c = fixture('angelone/candles-one-day.docs-example.json');
     const f = route({

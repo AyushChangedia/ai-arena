@@ -15,7 +15,10 @@ export function baseContext(raw: Record<string, string | undefined> = process.en
   return { arena: must(loadArena()), fees: must(loadFees()), envCheck, env: envCheck.env };
 }
 
-export function angelProvider(ctx: BaseContext): AngelOneProvider {
+export function angelProvider(
+  ctx: BaseContext,
+  onQuoteRetry?: (message: string) => void,
+): AngelOneProvider {
   const e = requireEnv(ctx.envCheck, [
     'ANGEL_API_KEY',
     'ANGEL_CLIENT_CODE',
@@ -37,6 +40,8 @@ export function angelProvider(ctx: BaseContext): AngelOneProvider {
       quoteBatchSize: md.quoteBatchSize,
       quoteRequestsPerSecond: md.quoteRequestsPerSecond,
       candleRequestsPerSecond: md.candleRequestsPerSecond,
+      quoteRetryDelayMs: md.quoteRetryDelaySeconds * 1000,
+      onQuoteRetry,
     },
   );
 }
