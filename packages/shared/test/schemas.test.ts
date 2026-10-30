@@ -38,6 +38,7 @@ describe('config schemas', () => {
       'meta',
       'deepseek',
       'nvidia',
+      'ultra', // NVIDIA's second free model (owner, 2026-10-30)
       'xingchen',
       'recursive',
     ]);

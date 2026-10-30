@@ -228,8 +228,12 @@ describe('intraday day 1: a short, the square-off, end of day', () => {
           .rows[0].n,
       ).toBeGreaterThan(0);
       expect(
-        (await web.query("SELECT exit_plan FROM v_actions WHERE symbol = 'AAA' AND side = 'SELL'"))
-          .rows[0].exit_plan,
+        // The scripted model's short (the Monkey can short AAA too, on some seeds).
+        (
+          await web.query(
+            "SELECT exit_plan FROM v_actions WHERE participant_id = 'P1-openai' AND symbol = 'AAA' AND side = 'SELL'",
+          )
+        ).rows[0].exit_plan,
       ).toBe('Cover below 960, or above 1010 as a stop.');
       // Open shorts appear in v_holdings while open; after the square-off there are none.
       expect((await web.query('SELECT count(*)::int AS n FROM v_holdings')).rows[0].n).toBe(0);

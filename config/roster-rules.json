@@ -1,5 +1,5 @@
 {
-  "$comment": "How `pnpm engine roster` picks each slot from OpenRouter's /api/v1/models (SPEC §3.2). Patterns are regular expressions over model IDs; the newest matching model wins, and a dated variant of it is preferred. Aliases (~...-latest), :batch and preview builds are excluded because they can change the serving model without notice. Paid tiers (budget, flagship) field the five labs openai, anthropic, google, meta and deepseek; their patterns end in `$`, so they never match a `:free` ID. The free tier tries every slot below in order and takes each lab's newest `:free` model; a lab with no free model today sits out (at least 3 and at most 6 models). Free labs and patterns checked against OpenRouter's list on 2026-10-25. Thinking Machines (Inkling) was dropped the same day: OpenRouter serves its free model only to coding agents (HTTP 403 for other apps).",
+  "$comment": "How `pnpm engine roster` picks each slot from OpenRouter's /api/v1/models (SPEC §3.2). Patterns are regular expressions over model IDs; the newest matching model wins, and a dated variant of it is preferred. Aliases (~...-latest), :batch and preview builds are excluded because they can change the serving model without notice. Paid tiers (budget, flagship) field the five labs openai, anthropic, google, meta and deepseek; their patterns end in `$`, so they never match a `:free` ID. The free tier tries every slot below in order and takes each lab's newest `:free` model; a lab with no free model today sits out (at least 3 and at most 6 models). Free labs and patterns checked against OpenRouter's list on 2026-10-25. Thinking Machines (Inkling) was dropped the same day: OpenRouter serves its free model only to coding agents (HTTP 403 for other apps). On 2026-10-30 (the owner's choice: swap the busiest free model) the free Gemma 4 models were excluded: Gemma 4 31B got HTTP 429 (provider busy) in most P1 rounds and Gemma 4 26B did too in a test call; NVIDIA's Nemotron 3 Ultra, which answered that test, joined as its own slot (ultra), so NVIDIA fields two free models.",
   "slots": {
     "openai": {
       "lab": "OpenAI",
@@ -88,7 +88,18 @@
       "tiers": {
         "budget": [],
         "flagship": [],
-        "free": ["^nvidia/nemotron-\\d+(\\.\\d+)?-(super|ultra)[a-z0-9.-]*:free$"]
+        "free": ["^nvidia/nemotron-\\d+(\\.\\d+)?-super[a-z0-9.-]*:free$"]
+      },
+      "alternatives": []
+    },
+    "ultra": {
+      "lab": "NVIDIA",
+      "shortCode": "ULT",
+      "color": "#FF9F43",
+      "tiers": {
+        "budget": [],
+        "flagship": [],
+        "free": ["^nvidia/nemotron-\\d+(\\.\\d+)?-ultra[a-z0-9.-]*:free$"]
       },
       "alternatives": []
     },
@@ -129,7 +140,8 @@
     "-lite",
     "-nano",
     "contributor",
-    "distill"
+    "distill",
+    "^google/gemma-4-"
   ],
   "benchmarks": {
     "index": {

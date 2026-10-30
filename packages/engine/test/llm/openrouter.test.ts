@@ -471,7 +471,7 @@ describe('free tier (SPEC §3.2)', () => {
     expect(p.missingSlots).toEqual([]);
     expect(p.notOffered).toEqual(['anthropic']);
     // Labs whose free model isn't listed today sit out instead of blocking the roster.
-    expect(p.unavailable).toEqual(['nvidia', 'xingchen', 'recursive']);
+    expect(p.unavailable).toEqual(['nvidia', 'ultra', 'xingchen', 'recursive']);
     expect(p.config!.participants.map((x) => [x.openrouterId, x.shortCode])).toEqual([
       ['openai/gpt-oss-120b:free', 'GPT'],
       ['google/gemma-3-27b-it:free', 'GEM'], // gemini …-exp is excluded
@@ -487,8 +487,8 @@ describe('free tier (SPEC §3.2)', () => {
     expect(table).toContain('sits out: no free model from this lab');
     expect(table).toContain('$0 a month');
   });
-  it("picks from OpenRouter's real free list of 2026-10-25", () => {
-    // The 17 `:free` IDs and release dates the smoke → roster run printed on 2026-10-25.
+  it("picks from OpenRouter's real free list of 2026-10-30", () => {
+    // The 16 `:free` IDs and release dates the smoke → roster run printed on 2026-10-30.
     const day = (d: string) => Date.parse(`${d}T00:00:00Z`) / 1000;
     const live = [
       ['recursive/flint-v1.0:free', '2026-10-21'],
@@ -507,23 +507,24 @@ describe('free tier (SPEC §3.2)', () => {
       ['nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', '2026-04-28'],
       ['google/gemma-4-26b-a4b-it:free', '2026-04-03'],
       ['google/gemma-4-31b-it:free', '2026-04-02'],
-      ['nvidia/nemotron-3-super-120b-a12b:free', '2026-03-11'],
     ].map(([id, d]) => m(id!, day(d!)));
-    const p = proposeRoster(live, rules, 'free', arena, new Date('2026-10-25T00:00:00Z'));
+    const p = proposeRoster(live, rules, 'free', arena, new Date('2026-10-30T00:00:00Z'));
     expect(p.config!.participants.map((x) => [x.slot, x.openrouterId, x.shortCode])).toEqual([
-      ['google', 'google/gemma-4-31b-it:free', 'GEM'],
       ['nvidia', 'nvidia/nemotron-3.5-super-vl:free', 'NEM'],
+      ['ultra', 'nvidia/nemotron-3-ultra-550b-a55b:free', 'ULT'],
       ['xingchen', 'xingchen-agi/xing4.0-29b-a4b:free', 'XNG'],
       ['recursive', 'recursive/flint-v1.0:free', 'FLT'],
     ]);
-    expect(p.unavailable).toEqual(['openai', 'meta', 'deepseek']);
+    // Google sits out: its free Gemma 4 models are excluded as too often busy (owner, 2026-10-30).
+    expect(p.unavailable).toEqual(['openai', 'google', 'meta', 'deepseek']);
     expect(modelsConfigSchema.safeParse(p.config).success).toBe(true);
     // Inkling is on the list but no slot takes it: OpenRouter serves it only to coding agents.
     // 4 models × 4 rounds stays well under the 50-a-day free limit, even with a repair each.
     expect(p.callsPerDay * 2).toBeLessThanOrEqual(50);
   });
   it('caps a free roster at six models', () => {
-    const many = ['google/gemma-4-31b-it:free', 'nvidia/nemotron-3-super-120b-a12b:free'];
+    // Seven labs with a free model (Gemma 4 is excluded since 2026-10-30, so Gemma 3 stands in).
+    const many = ['google/gemma-3-27b-it:free', 'nvidia/nemotron-3-super-120b-a12b:free'];
     const p = proposeRoster(
       [
         ...many.map((id) => m(id, 1)),

@@ -1,10 +1,10 @@
 {
-  "$comment": "Proposed by `pnpm engine roster`. A live season will not start until a human sets \"approved\": true (SPEC §3.2). Never change a model mid-season. Inkling (thinkingmachines) removed on 2026-10-25: OpenRouter serves its free model only to coding agents (HTTP 403 in the decide-all smoke run).",
+  "$comment": "Proposed by `pnpm engine roster`. A live season will not start until a human sets \"approved\": true (SPEC §3.2). Never change a model mid-season. Inkling (thinkingmachines) removed on 2026-10-25: OpenRouter serves its free model only to coding agents (HTTP 403 in the decide-all smoke run). Gemma 4 31B (google) replaced by Nemotron 3 Ultra (ultra) on 2026-10-30, the owner's choice, from practice season P2: Gemma got HTTP 429 (provider busy) in most P1 rounds; in the smoke decide-all test that day Nemotron 3 Ultra answered and Gemma 4 26B and Laguna S 2.1 were busy.",
   "tier": "free",
   "approved": false,
   "approvedBy": null,
   "approvedOn": null,
-  "generatedAt": "2026-10-25T06:47:24.227Z",
+  "generatedAt": "2026-10-30T14:56:39.963Z",
   "source": "https://openrouter.ai/api/v1/models",
   "estimateAssumptions": {
     "inputTokensPerCall": 6000,
@@ -13,33 +13,6 @@
   },
   "totalMonthlyEstimateUsd": 0,
   "participants": [
-    {
-      "slot": "google",
-      "openrouterId": "google/gemma-4-31b-it:free",
-      "canonicalSlug": "google/gemma-4-31b-it-20260402",
-      "displayName": "Gemma 4 31B",
-      "shortCode": "GEM",
-      "color": "#F48FC1",
-      "created": 1775148486,
-      "contextLength": 262144,
-      "supportedParameters": [
-        "include_reasoning",
-        "max_tokens",
-        "reasoning",
-        "response_format",
-        "seed",
-        "temperature",
-        "tool_choice",
-        "tools",
-        "top_p"
-      ],
-      "pricing": {
-        "promptUsdPerToken": "0",
-        "completionUsdPerToken": "0"
-      },
-      "monthlyEstimateUsd": 0,
-      "monthlyCapUsd": 0
-    },
     {
       "slot": "nvidia",
       "openrouterId": "nvidia/nemotron-3.5-super-vl:free",
@@ -56,6 +29,33 @@
         "response_format",
         "seed",
         "structured_outputs",
+        "temperature",
+        "tool_choice",
+        "tools",
+        "top_p"
+      ],
+      "pricing": {
+        "promptUsdPerToken": "0",
+        "completionUsdPerToken": "0"
+      },
+      "monthlyEstimateUsd": 0,
+      "monthlyCapUsd": 0
+    },
+    {
+      "slot": "ultra",
+      "openrouterId": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "canonicalSlug": "nvidia/nemotron-3-ultra-550b-a55b-20260604",
+      "displayName": "Nemotron 3 Ultra",
+      "shortCode": "ULT",
+      "color": "#FF9F43",
+      "created": 1780551208,
+      "contextLength": 1000000,
+      "supportedParameters": [
+        "include_reasoning",
+        "max_tokens",
+        "reasoning",
+        "reasoning_effort",
+        "seed",
         "temperature",
         "tool_choice",
         "tools",
