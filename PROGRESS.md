@@ -120,7 +120,10 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
   Not verified against the live models until the next round or a `decide-all` run. Raising `max_tokens` could hit a provider's output limit; if a model then starts failing with HTTP 400 or 404, lower it.
 
-- **Shadow days for SETUP.md Part F (3 needed): 3 of 3 recorded.**
+- **Shadow days for SETUP.md Part F (3 needed): 3 of 3 recorded.** Later P1 days:
+  - **P1 day 3, Thu 29 Oct.** 48 timer runs, no gaps or failures. 09:30 was skipped (DATA_DEGRADED). The new run-summary detail shows the cause: `/rest/secure/angelbroking/market/v1/quote failed: AB4030 Unable to fetch market data`, an Angel One error on one quote request, so the whole snapshot failed. Rounds 11:00–14:00 completed. The square-off closed everything. Export: 14 entries, verified. Misses: Gemma 3, Xing 2 (HTTP 429). Closing: Nifty ₹1,00,760.42, Nemotron ₹1,00,243.02, Gemma ₹99,919.12, Flint ₹99,894.14, Monkey ₹99,813.03, Xing ₹99,562.99.
+  - **P1 day 4, Fri 30 Oct.** 48 timer runs, no gaps or failures. All 4 rounds completed. The square-off closed everything. Export: 17 entries, verified. Misses: Gemma 3, Flint 2, Xing 2 (HTTP 429). Closing: Nifty ₹1,01,271.54, Nemotron ₹1,00,197.51, Gemma ₹99,919.12, Flint ₹99,894.14, Monkey ₹99,703.09, Xing ₹99,380.75.
+  - Open: a single failed Angel One quote request skips the whole round (no retry). Possible fix: retry that request once. Not built; awaiting the owner's decision.
   - **Day 3 = P1 day 2, Wed 28 Oct 2026.** All clean: 48 timer runs 08:32–16:22, no gaps or failures. Pre-market ran. All 4 rounds completed; the 15:02 square-off closed everything. Reconciliation ok. Export and anchor: 15 entries (seq 24–38), head `4b70da5a…`; `pnpm verify-ledger --file` OK. Closing: Nemotron ₹1,00,011.42, Monkey ₹99,950.10, Flint ₹99,935.13, Gemma ₹99,919.12, Nifty ₹99,715.34, Xing ₹99,666.02. Busy (HTTP 429) misses: Gemma 3 of 4 rounds (it answered and traded for the first time at 14:00), Xing 2, Flint 1; Nemotron answered every round.
   - **Day 2 = P1 day 1, Tue 27 Oct 2026, the first intraday day.** Reconciliation ok, every position closed by the square-off.
     - Ticks: the cron-job.org timer started all 48 runs, every 10 minutes from 08:32 to 16:22 IST, all green. GitHub's own schedule also fired once, at 14:16.
