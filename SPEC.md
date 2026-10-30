@@ -276,7 +276,7 @@ Read the current SmartAPI docs before implementing; the paths below were correct
 
 ### 8.3 Snapshots
 
-A snapshot is one batched fetch of full quotes (LTP, OHLC, previous close, volume, best 5 bid/ask, exchange feed time) for the universe plus index quotes, stored with: purpose (`decision`, `fill`, `valuation`), fetch start and end times, source, the provider's raw response (sanitised), and per-symbol validation results. Respect the provider's per-request instrument limit and rate limits; batch and throttle with a token-bucket limiter.
+A snapshot is one batched fetch of full quotes (LTP, OHLC, previous close, volume, best 5 bid/ask, exchange feed time) for the universe plus index quotes, stored with: purpose (`decision`, `fill`, `valuation`), fetch start and end times, source, the provider's raw response (sanitised), and per-symbol validation results. Respect the provider's per-request instrument limit and rate limits; batch and throttle with a token-bucket limiter. A quote request that fails (an error reply such as AB4030, a network error or a timeout) is retried once after `marketData.quoteRetryDelaySeconds` (3 s); a second failure fails the snapshot. A changed response shape or an expired session is not retried this way (added 2026-10-30, the owner's decision: one AB4030 reply had skipped the whole 09:30 round on 29 Oct).
 
 ### 8.4 Quote validation (per symbol, per snapshot)
 
