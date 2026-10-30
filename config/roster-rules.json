@@ -1,14 +1,20 @@
 {
-  "$comment": "How `pnpm engine roster` picks each slot from OpenRouter's /api/v1/models (SPEC §3.2). Patterns are regular expressions over model IDs; the newest matching model wins, and a dated variant of it is preferred. Aliases (~...-latest), :batch and preview builds are excluded because they can change the serving model without notice. Paid tiers (budget, flagship) field the five labs openai, anthropic, google, meta and deepseek; their patterns end in `$`, so they never match a `:free` ID. The free tier tries every slot below in order and takes each lab's newest `:free` model; a lab with no free model today sits out (at least 3 and at most 6 models). Free labs and patterns checked against OpenRouter's list on 2026-10-25. Thinking Machines (Inkling) was dropped the same day: OpenRouter serves its free model only to coding agents (HTTP 403 for other apps).",
+  "$comment": "How `pnpm engine roster` picks each slot from OpenRouter's /api/v1/models (SPEC \u00a73.2). Patterns are regular expressions over model IDs; the newest matching model wins, and a dated variant of it is preferred. Aliases (~...-latest), :batch and preview builds are excluded because they can change the serving model without notice. Paid tiers (budget, flagship) field the five labs openai, anthropic, google, meta and deepseek; their patterns end in `$`, so they never match a `:free` ID. The free tier tries every slot below in order and takes each lab's newest `:free` model; a lab with no free model today sits out (at least 3 and at most 6 models). Free labs and patterns checked against OpenRouter's list on 2026-10-25. Thinking Machines (Inkling) was dropped the same day: OpenRouter serves its free model only to coding agents (HTTP 403 for other apps).",
   "slots": {
     "openai": {
       "lab": "OpenAI",
       "shortCode": "GPT",
       "color": "#5AB8F0",
       "tiers": {
-        "budget": ["^openai/gpt-\\d+(\\.\\d+)?-mini(-\\d{4}-\\d{2}-\\d{2})?$"],
-        "flagship": ["^openai/gpt-\\d+(\\.\\d+)?(-\\d{4}-\\d{2}-\\d{2})?$"],
-        "free": ["^openai/gpt-oss-\\d+b:free$"]
+        "budget": [
+          "^openai/gpt-\\d+(\\.\\d+)?-mini(-\\d{4}-\\d{2}-\\d{2})?$"
+        ],
+        "flagship": [
+          "^openai/gpt-\\d+(\\.\\d+)?(-\\d{4}-\\d{2}-\\d{2})?$"
+        ],
+        "free": [
+          "^openai/gpt-oss-\\d+b:free$"
+        ]
       },
       "alternatives": []
     },
@@ -34,11 +40,14 @@
       "shortCode": "GEM",
       "color": "#F48FC1",
       "tiers": {
-        "budget": ["^google/gemini-\\d+(\\.\\d+)?-flash(-\\d{3}|-\\d{8})?$"],
-        "flagship": ["^google/gemini-\\d+(\\.\\d+)?-pro(-\\d{3}|-\\d{8})?$"],
+        "budget": [
+          "^google/gemini-\\d+(\\.\\d+)?-flash(-\\d{3}|-\\d{8})?$"
+        ],
+        "flagship": [
+          "^google/gemini-\\d+(\\.\\d+)?-pro(-\\d{3}|-\\d{8})?$"
+        ],
         "free": [
-          "^google/gemini-\\d+(\\.\\d+)?-flash(-\\d{3}|-\\d{8})?:free$",
-          "^google/gemma-\\d+-\\d+b-it:free$"
+          "^google/gemma-4-26b-a4b-it:free$"
         ]
       },
       "alternatives": []
@@ -48,8 +57,12 @@
       "shortCode": "MSP",
       "color": "#2EC4C4",
       "tiers": {
-        "budget": ["^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?$"],
-        "flagship": ["^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?$"],
+        "budget": [
+          "^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?$"
+        ],
+        "flagship": [
+          "^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?$"
+        ],
         "free": [
           "^meta/muse-spark(-\\d+(\\.\\d+)?)?(-\\d{8})?:free$",
           "^meta-llama/llama-\\d+(\\.\\d+)?-[a-z0-9.-]+:free$"
@@ -77,7 +90,9 @@
           "^deepseek/deepseek-v\\d+(\\.\\d+)?-pro(-\\d{4})?$",
           "^deepseek/deepseek-r\\d+(-\\d{4})?$"
         ],
-        "free": ["^deepseek/deepseek-[a-z0-9.-]+:free$"]
+        "free": [
+          "^deepseek/deepseek-[a-z0-9.-]+:free$"
+        ]
       },
       "alternatives": []
     },
@@ -88,7 +103,9 @@
       "tiers": {
         "budget": [],
         "flagship": [],
-        "free": ["^nvidia/nemotron-\\d+(\\.\\d+)?-(super|ultra)[a-z0-9.-]*:free$"]
+        "free": [
+          "^nvidia/nemotron-3-ultra-550b-a55b:free$"
+        ]
       },
       "alternatives": []
     },
@@ -99,7 +116,7 @@
       "tiers": {
         "budget": [],
         "flagship": [],
-        "free": ["^xingchen-agi/xing\\d+(\\.\\d+)?-[a-z0-9-]+:free$"]
+        "free": []
       },
       "alternatives": []
     },
@@ -110,7 +127,20 @@
       "tiers": {
         "budget": [],
         "flagship": [],
-        "free": ["^recursive/flint-v\\d+(\\.\\d+)?:free$"]
+        "free": []
+      },
+      "alternatives": []
+    },
+    "poolside": {
+      "lab": "Poolside",
+      "shortCode": "LAG",
+      "color": "#E6C88A",
+      "tiers": {
+        "budget": [],
+        "flagship": [],
+        "free": [
+          "^poolside/laguna-s-\\d+(\\.\\d+)?:free$"
+        ]
       },
       "alternatives": []
     }
