@@ -70,6 +70,7 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 ## In progress
 
 Practice season P2 (Nemotron 3 Ultra in place of Gemma 4 31B) starts Monday 2 Nov 2026 at 09:30 IST. Done 2026-10-30 after PR #15 merged (`3616a57`), SETUP.md step 23b:
+
 - `admin.yml` run 4, `end-season P1` → "Season P1 finished early after 4 trading day(s), on 2026-10-30. Its standings are frozen at that day's marks."
 - `admin.yml` run 5, `start-season P2 --start 2026-11-02 --mode shadow` → "Season P2 (shadow) scheduled: 2026-11-02 to 2026-12-01, 20 trading days."
 - The evening check-in now reports only problems (owner, 2026-10-30).
