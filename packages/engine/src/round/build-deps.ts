@@ -43,7 +43,8 @@ export function buildDeps(raw: Record<string, string | undefined> = process.env)
     models: models.ok ? models.value : null,
     env: ctx.env,
     db,
-    provider: () => (provider ??= angelProvider(ctx)),
+    provider: () =>
+      (provider ??= angelProvider(ctx, (message) => log.warn({ event: 'quote_retry' }, message))),
     llm: () =>
       (llm ??= new OpenRouterClient({
         apiKey: requireEnv(ctx.envCheck, ['OPENROUTER_API_KEY']).OPENROUTER_API_KEY,

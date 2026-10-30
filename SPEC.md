@@ -122,7 +122,7 @@ All values live in `config/arena.json`. Code reads the config; the `/rules` page
 
 Configured in `config/models.json`:
 
-- Paid tiers: five model slots, `openai`, `anthropic`, `google`, `meta`, `deepseek`. The free tier (§3.2) fields the labs in `config/roster-rules.json` that have a free model today; on 2026-10-25 only Google among the five had one, so the free slots also include NVIDIA, Xingchen AGI and Recursive (the owner's choice; Thinking Machines' Inkling was tried and dropped because OpenRouter serves it only to coding agents). Slot names are lowercase slugs, and the site's model pages follow the config.
+- Paid tiers: five model slots, `openai`, `anthropic`, `google`, `meta`, `deepseek`. The free tier (§3.2) fields the labs in `config/roster-rules.json` that have a free model today; on 2026-10-25 only Google among the five had one, so the free slots also include NVIDIA, Xingchen AGI and Recursive (the owner's choice; Thinking Machines' Inkling was tried and dropped because OpenRouter serves it only to coding agents). On 2026-10-30 the owner chose to swap the busiest free model: Google's free Gemma 4 models are excluded (Gemma 4 31B got HTTP 429 in most P1 rounds; Gemma 4 26B was busy in a test call too), and NVIDIA's Nemotron 3 Ultra, which answered that test, takes a second NVIDIA slot, `ultra`. The swap starts a new practice season (P2), per rule 6 below. Slot names are lowercase slugs, and the site's model pages follow the config.
 - Two benchmarks that appear on the leaderboard but are visually quieter:
   - **Nifty 50**: ₹1,00,000 "invested" in the index at the season's first fill snapshot, no costs. Value = 1,00,000 × index now ÷ index at start.
   - **Monkey**: a seeded random trader that follows the same rules and pays the same costs (§11.9).
@@ -276,7 +276,7 @@ Read the current SmartAPI docs before implementing; the paths below were correct
 
 ### 8.3 Snapshots
 
-A snapshot is one batched fetch of full quotes (LTP, OHLC, previous close, volume, best 5 bid/ask, exchange feed time) for the universe plus index quotes, stored with: purpose (`decision`, `fill`, `valuation`), fetch start and end times, source, the provider's raw response (sanitised), and per-symbol validation results. Respect the provider's per-request instrument limit and rate limits; batch and throttle with a token-bucket limiter.
+A snapshot is one batched fetch of full quotes (LTP, OHLC, previous close, volume, best 5 bid/ask, exchange feed time) for the universe plus index quotes, stored with: purpose (`decision`, `fill`, `valuation`), fetch start and end times, source, the provider's raw response (sanitised), and per-symbol validation results. Respect the provider's per-request instrument limit and rate limits; batch and throttle with a token-bucket limiter. A quote request that fails (an error reply such as AB4030, a network error or a timeout) is retried once after `marketData.quoteRetryDelaySeconds` (3 s); a second failure fails the snapshot. A changed response shape or an expired session is not retried this way (added 2026-10-30, the owner's decision: one AB4030 reply had skipped the whole 09:30 round on 29 Oct).
 
 ### 8.4 Quote validation (per symbol, per snapshot)
 

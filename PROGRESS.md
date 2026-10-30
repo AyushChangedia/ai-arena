@@ -69,13 +69,15 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 
 ## In progress
 
-Nothing. Practice season P1 (intraday rules) starts Tuesday 27 Oct 2026 at 09:30 IST.
+Practice season P2 (Nemotron 3 Ultra in place of Gemma 4 31B) starts Monday 2 Nov 2026 at 09:30 IST; P1 ends after 4 days (SETUP.md step 23b).
 
 ## Blocked on the human
 
 See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 
 **Owner decision, 2026-10-26: "never ask for merge".** Claude sessions merge their own PRs once CI passes, and say what they merged.
+
+**Owner decision, 2026-10-30: no daily report.** The evening check-in messages the owner only when something went wrong or needs their action.
 
 ## Intraday switch, done 2026-10-26 (19:08–19:10 IST)
 
@@ -123,7 +125,8 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
 - **Shadow days for SETUP.md Part F (3 needed): 3 of 3 recorded.** Later P1 days:
   - **P1 day 3, Thu 29 Oct.** 48 timer runs, no gaps or failures. 09:30 was skipped (DATA_DEGRADED). The new run-summary detail shows the cause: `/rest/secure/angelbroking/market/v1/quote failed: AB4030 Unable to fetch market data`, an Angel One error on one quote request, so the whole snapshot failed. Rounds 11:00–14:00 completed. The square-off closed everything. Export: 14 entries, verified. Misses: Gemma 3, Xing 2 (HTTP 429). Closing: Nifty ₹1,00,760.42, Nemotron ₹1,00,243.02, Gemma ₹99,919.12, Flint ₹99,894.14, Monkey ₹99,813.03, Xing ₹99,562.99.
   - **P1 day 4, Fri 30 Oct.** 48 timer runs, no gaps or failures. All 4 rounds completed. The square-off closed everything. Export: 17 entries, verified. Misses: Gemma 3, Flint 2, Xing 2 (HTTP 429). Closing: Nifty ₹1,01,271.54, Nemotron ₹1,00,197.51, Gemma ₹99,919.12, Flint ₹99,894.14, Monkey ₹99,703.09, Xing ₹99,380.75.
-  - Open: a single failed Angel One quote request skips the whole round (no retry). Possible fix: retry that request once. Not built; awaiting the owner's decision.
+  - Fixed 2026-10-30 (owner: "retry"): a failed quote request (error reply such as AB4030, network error, timeout) is now retried once after 3 s (`marketData.quoteRetryDelaySeconds`); the first failure is logged as `quote_retry`. Verified by unit tests (`test/data/angelone.test.ts`, the 3 new tests fail without the retry). Not verified against a live AB4030: it can't be triggered on demand.
+  - **Gemma swap, 2026-10-30 (owner: "1").** `smoke → roster` (free) listed 16 free models. `smoke → decide-all` on the branch with three candidates, after market hours (latest stored snapshot): Nemotron 3 Ultra OK (89.7 s, 6249/1804 tokens, no actions); Gemma 4 26B and Laguna S 2.1 HTTP 429 (busy). Roster rules now exclude Gemma 4 and add an `ultra` slot (NVIDIA, ULT, `#FF9F43`); `config/models.json` is Nemotron 3.5 Super VL, Nemotron 3 Ultra, Xing, Flint. Not verified: whether Nemotron 3 Ultra stays available during market hours (one test call); its 90 s answer is close to the 120 s timeout.
   - **Day 3 = P1 day 2, Wed 28 Oct 2026.** All clean: 48 timer runs 08:32–16:22, no gaps or failures. Pre-market ran. All 4 rounds completed; the 15:02 square-off closed everything. Reconciliation ok. Export and anchor: 15 entries (seq 24–38), head `4b70da5a…`; `pnpm verify-ledger --file` OK. Closing: Nemotron ₹1,00,011.42, Monkey ₹99,950.10, Flint ₹99,935.13, Gemma ₹99,919.12, Nifty ₹99,715.34, Xing ₹99,666.02. Busy (HTTP 429) misses: Gemma 3 of 4 rounds (it answered and traded for the first time at 14:00), Xing 2, Flint 1; Nemotron answered every round.
   - **Day 2 = P1 day 1, Tue 27 Oct 2026, the first intraday day.** Reconciliation ok, every position closed by the square-off.
     - Ticks: the cron-job.org timer started all 48 runs, every 10 minutes from 08:32 to 16:22 IST, all green. GitHub's own schedule also fired once, at 14:16.

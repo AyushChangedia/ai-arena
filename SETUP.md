@@ -330,6 +330,23 @@ After the intraday PR is merged, run these three workflows in order, each after 
 
 S0's standings stay frozen at Monday's close and remain viewable at `/seasons/S0`. The site switches to P1 with the pre-season countdown. On P1's first day, check the **tick** run at about 15:02 IST: its summary should show "square-off 15:02" with every open position closed.
 
+### 23b. Swap Gemma for Nemotron 3 Ultra with a fresh practice season (2026-10-30)
+
+A model never changes mid-season (SPEC §3.2 rule 6), so the swap ends P1 and starts P2. After the swap PR is merged, run these two workflows in order, each after the previous one finishes green, before 09:30 IST on P2's first day:
+
+1. **admin** with:
+   - command: `end-season`
+   - id: `P1`
+   - reason: `Gemma 4 31B was busy (HTTP 429) in most rounds; swapped for Nemotron 3 Ultra, which needs a new season.`
+2. **admin** with:
+   - command: `start-season`
+   - id: `P2`
+   - start: `2026-11-02`
+   - mode: `shadow`
+   - reason: `Fresh practice season with Nemotron 3 Ultra in place of Gemma 4 31B`
+
+P1's standings stay frozen at 30 October's close and remain viewable at `/seasons/P1`.
+
 ### 24. Watch the first day
 
 On the first trading day, open a few **tick** runs (each run's summary lists the round, every participant's status, latency, cost and incidents). After 16:00 IST check the end-of-day run: reconciliation **ok**, and a `public-data/…` commit on the data branch. If Telegram is set up you get the daily digest.
