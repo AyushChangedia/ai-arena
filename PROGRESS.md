@@ -69,7 +69,11 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 
 ## In progress
 
-**Season 1 (live) starts Monday 2 Nov 2026 at 09:30 IST** (owner, 2026-10-31: "start the season 1 from monday"). The roster in `config/models.json` is approved (Nemotron 3.5 Super VL, Nemotron 3 Ultra, Xing, Flint). SETUP.md step 28: Claude runs `start-season S1 --mode live` and ends the unstarted practice season P2; the owner switches `ARENA_MODE` to `live` in GitHub and Vercel (see "Blocked on the human").
+**Season 1 (live) starts Monday 2 Nov 2026 at 09:30 IST** (owner, 2026-10-31: "start the season 1 from monday"). The roster in `config/models.json` is approved (Nemotron 3.5 Super VL, Nemotron 3 Ultra, Xing, Flint). SETUP.md step 28, done 2026-10-31 after PR #17 merged (`970d3f1`):
+
+- `admin.yml` run 6, `start-season S1 --start 2026-11-02 --mode live` → "Season S1 (live) scheduled: 2026-11-02 to 2026-12-01, 20 trading days."
+- `admin.yml` run 7, `end-season P2` → "Season P2 ended before its first round."
+- Left for the owner: switch `ARENA_MODE` to `live` in GitHub and Vercel (see "Blocked on the human"). A one-off check at 08:00 IST on 2 Nov confirms the GitHub variable.
 
 Launch checklist items (SPEC §22, SETUP step 26) not done at go-live, the owner's call to start anyway: intraday fees not checked against a broker calculator (`verifiedOn: null`); Healthchecks not configured; Angel One display confirmation not asked (the "after close" policy stays on); Lighthouse on the production URL not run; Nemotron 3 Ultra's availability in market hours untested.
 
