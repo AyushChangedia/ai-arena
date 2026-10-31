@@ -1,9 +1,9 @@
 {
-  "$comment": "Proposed by `pnpm engine roster`. A live season will not start until a human sets \"approved\": true (SPEC §3.2). Never change a model mid-season. Inkling (thinkingmachines) removed on 2026-10-25: OpenRouter serves its free model only to coding agents (HTTP 403 in the decide-all smoke run). Gemma 4 31B (google) replaced by Nemotron 3 Ultra (ultra) on 2026-10-30, the owner's choice, from practice season P2: Gemma got HTTP 429 (provider busy) in most P1 rounds; in the smoke decide-all test that day Nemotron 3 Ultra answered and Gemma 4 26B and Laguna S 2.1 were busy.",
+  "$comment": "Proposed by `pnpm engine roster`. A live season will not start until a human sets \"approved\": true (SPEC §3.2). Never change a model mid-season. Inkling (thinkingmachines) removed on 2026-10-25: OpenRouter serves its free model only to coding agents (HTTP 403 in the decide-all smoke run). Gemma 4 31B (google) replaced by Nemotron 3 Ultra (ultra) on 2026-10-30, the owner's choice, from practice season P2: Gemma got HTTP 429 (provider busy) in most P1 rounds; in the smoke decide-all test that day Nemotron 3 Ultra answered and Gemma 4 26B and Laguna S 2.1 were busy. Approved for Season 1 (live, from 2 Nov 2026) by the owner on 2026-10-31 (\"start the season 1 from monday\").",
   "tier": "free",
-  "approved": false,
-  "approvedBy": null,
-  "approvedOn": null,
+  "approved": true,
+  "approvedBy": "Ayush (owner)",
+  "approvedOn": "2026-10-31",
   "generatedAt": "2026-10-30T14:56:39.963Z",
   "source": "https://openrouter.ai/api/v1/models",
   "estimateAssumptions": {
