@@ -80,7 +80,8 @@ test.describe('populated shadow season', () => {
     expect(await cards.count()).toBe(5); // the five test models; benchmarks stay in the standings
     for (const card of await cards.all()) {
       await expect(card.getByText('Started with')).toBeVisible();
-      await expect(card.getByText('₹1,00,000', { exact: true })).toBeVisible();
+      // The value next to "Started with" (worth now can round to ₹1,00,000 too).
+      await expect(card.locator('dt:text-is("Started with") + dd')).toHaveText('₹1,00,000');
       await expect(card.getByText(/^Last round, \d\d:\d\d IST$/)).toBeVisible();
       await expect(card.getByRole('rowheader', { name: 'Cash' })).toBeVisible();
     }
