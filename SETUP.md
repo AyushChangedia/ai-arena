@@ -165,7 +165,7 @@ For reference, a web search on 2026-10-24 suggested the budget tier would come o
 
 ### 11. Check the charges against a broker calculator
 
-Since 2026-10-26 the arena trades **intraday** with a flat ₹20 brokerage per order (your choice). Check those rates first:
+Since 2026-10-26 the arena trades **intraday**; since 2026-10-31 brokerage is 0.03% or ₹20 per order, whichever is lower (your choice). Check those rates first:
 
 1. Open https://zerodha.com/brokerage-calculator → **Equity** → **Intraday** tab.
 2. Enter buy price 1000, sell price 1000, quantity 100 (₹1,00,000 each side), exchange NSE.
@@ -174,7 +174,7 @@ Since 2026-10-26 the arena trades **intraday** with a flat ₹20 brokerage per o
    - Stamp duty: **₹3.00** (0.003%, buy side only)
    - Exchange transaction charge: **₹2.97** per side
    - SEBI: **₹0.10** per side
-   - Brokerage: Zerodha shows **₹40** in total (₹20 per order, because 0.03% of ₹1,00,000 is more than ₹20). The arena always charges ₹20 per order; on orders under ₹66,667 Zerodha would charge less.
+   - Brokerage: Zerodha shows **₹40** in total (₹20 per order, because 0.03% of ₹1,00,000 is more than ₹20). The arena charges the same: 0.03% or ₹20, whichever is lower. A second check: quantity 10 at 1000 (₹10,000 each side) should show brokerage **₹6** in total (₹3 per order); the engine's BUY total for ₹10,000 is **₹4.22**.
    - Engine totals: BUY **₹30.34**, SELL **₹52.34**.
 4. If STT, stamp, exchange and SEBI match, set `"verifiedOn": "YYYY-MM-DD"` in `config/fees.json` and commit. If any rate differs, don't edit the numbers yourself: send the calculator's breakdown to a Claude session, so the rates and golden tests change together.
 

@@ -3,7 +3,7 @@
  */
 import { paiseToDecimal } from '@arena/shared/money';
 import type { ArenaConfig, FeesConfig } from '@arena/shared/schemas';
-import { costPctString, flatPerOrderPaise } from '../core/fees';
+import { cappedCharges, costPctString, flatPerOrderPaise } from '../core/fees';
 
 export interface SystemPromptParams {
   seasonStart: string;
@@ -27,8 +27,15 @@ export function renderSystemPrompt(
   const dp = fees.dpCharge
     ? ` plus ${paiseToDecimal(BigInt(fees.dpCharge.paisePerSymbolPerDay))} INR per stock on each day you sell it`
     : '';
-  const costs =
-    flatBuy > 0n || flatSell > 0n
+  const caps = cappedCharges(fees)
+    .map(
+      (c) =>
+        `${c.label.toLowerCase()} of ${c.ratePct}% of trade value or ${paiseToDecimal(c.maxPaise)} INR per order, whichever is lower${c.gstPct ? `, plus ${c.gstPct}% GST on it` : ''}`,
+    )
+    .join('; ');
+  const costs = caps
+    ? `Costs: ${caps}; other costs about ${costPctString(fees, 'BUY')}% of trade value on a BUY and about ${costPctString(fees, 'SELL')}% on a SELL${dp}.`
+    : flatBuy > 0n || flatSell > 0n
       ? `Costs: ${flat} (brokerage with GST), plus about ${costPctString(fees, 'BUY')}% of trade value on a BUY and about ${costPctString(fees, 'SELL')}% on a SELL${dp}.`
       : `Costs: about ${costPctString(fees, 'BUY')}% of trade value on a BUY; about ${costPctString(fees, 'SELL')}% on a SELL${dp}.`;
   const rules = intraday
@@ -159,6 +166,24 @@ export interface HoldingRow {
   lastPricePaise: bigint;
 }
 
+/** One position (or part of one) closed today, for "YOUR DAY SO FAR". */
+export interface ClosedTrade {
+  symbol: string;
+  direction: 'long' | 'short';
+  quantity: number;
+  exitPricePaise: bigint;
+  /** (exit − entry) × qty for a long, (entry − exit) × qty for a short; costs not deducted. */
+  gainBeforeCostsPaise: bigint;
+}
+
+/** The participant's own results today (owner, 2026-10-31: "daily scorecard"). */
+export interface DayScore {
+  dayStartValuePaise: bigint;
+  orders: number;
+  costsPaise: bigint;
+  closed: ClosedTrade[];
+}
+
 export interface PrivateBlockParams {
   round: number;
   roundsToday: number;
@@ -176,6 +201,33 @@ export interface PrivateBlockParams {
   /** Intraday product: the square-off time, shown on the first line, and signed positions. */
   squareOffAt?: string | null;
   maxGrossExposurePct?: number;
+  /** Shown as "YOUR DAY SO FAR" when given. */
+  day?: DayScore | null;
+}
+
+function renderDay(day: DayScore, totalPaise: bigint): string[] {
+  const change = totalPaise - day.dayStartValuePaise;
+  const changePct =
+    day.dayStartValuePaise > 0n ? Number(change) / Number(day.dayStartValuePaise) : 0;
+  return [
+    'YOUR DAY SO FAR',
+    `Value at today's open: ${paiseToDecimal(day.dayStartValuePaise)} INR. Change today: ${paiseToDecimal(change)} INR (${pct2(changePct)}%), costs included.`,
+    `Orders filled today: ${day.orders}. Costs paid today: ${paiseToDecimal(day.costsPaise)} INR.`,
+    day.closed.length
+      ? [
+          'Positions closed today (symbol, long_or_short, qty, exit_price, gain_before_costs):',
+          ...day.closed.map((c) =>
+            [
+              c.symbol,
+              c.direction,
+              c.quantity,
+              paiseToDecimal(c.exitPricePaise),
+              paiseToDecimal(c.gainBeforeCostsPaise),
+            ].join(', '),
+          ),
+        ].join('\n')
+      : 'Positions closed today: none',
+  ];
 }
 
 export function renderPrivateBlock(p: PrivateBlockParams): string {
@@ -226,6 +278,7 @@ export function renderPrivateBlock(p: PrivateBlockParams): string {
     ...portfolio,
     rows.length ? rows.join('\n') : 'none',
     '',
+    ...(p.day ? [...renderDay(p.day, total), ''] : []),
     'YOUR LAST 5 ROUNDS (newest first)',
     p.history.length ? p.history.slice(0, 5).join('\n') : 'none',
     '',

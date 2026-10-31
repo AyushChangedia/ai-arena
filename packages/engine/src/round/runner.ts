@@ -23,6 +23,7 @@ import { appendLedger, applyPositions } from './ledger-store';
 import {
   buildMarketBlock,
   buildPrivateBlock,
+  dayScoreFor,
   historyFor,
   lastNoteToSelf,
   pricesWithFallback,
@@ -531,6 +532,7 @@ export async function runRound(
       squareOffAt:
         d.arena.product === 'intraday_long_short' ? d.arena.intraday!.squareOffFrom : null,
       maxGrossExposurePct: d.arena.limits.maxGrossExposurePct,
+      day: await dayScoreFor(d.db, p.id, tradingDate, season.starting_cash_paise),
     });
     const rec = await decideWithModel({
       client: d.llm(),

@@ -26,9 +26,13 @@ describe('config schemas', () => {
     expect(arena.intraday).toEqual({ squareOffFrom: '15:00', squareOffDeadline: '15:15' });
     expect(arena.limits.maxGrossExposurePct).toBe(100);
     const fees = feesConfigSchema.parse(read('fees.json'));
-    // Intraday STT: 0.025% on the sell side only. Brokerage: ₹20 per order.
+    // Intraday STT: 0.025% on the sell side only. Brokerage: 0.03% or ₹20 per order.
     expect(fees.charges.stt).toMatchObject({ rate: { num: 1, den: 4000 }, appliesTo: 'sell' });
-    expect(fees.charges.brokerage.flatPaisePerOrder).toBe('2000');
+    expect(fees.charges.brokerage).toMatchObject({
+      rate: { num: 3, den: 10000 },
+      maxPaisePerOrder: '2000',
+    });
+    expect(fees.charges.brokerage.flatPaisePerOrder).toBeUndefined();
     expect(fees.dpCharge).toBeNull();
     // The five paid-tier labs first, then the labs that take part only with free models.
     expect(Object.keys(rosterRulesSchema.parse(read('roster-rules.json')).slots)).toEqual([

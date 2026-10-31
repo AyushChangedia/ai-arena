@@ -3,19 +3,21 @@ import { join } from 'node:path';
 import {
   computeCharges,
   costPctString,
+  cappedCharges,
   chargesToJson,
   flatPerOrderPaise,
 } from '../../src/core/fees';
 import { fillPrice } from '../../src/core/prices';
 import { must, loadFees } from '../../src/config/load';
+import { feesConfigSchema } from '@arena/shared/schemas';
 
 /** The equity-delivery profile S0 ran under, kept as a fixture: the engine still supports it. */
 const fees = must(loadFees(join(__dirname, '../fixtures/delivery')));
-/** The committed profile: equity intraday with ₹20 brokerage per order (owner's choice, 2026-10-26). */
+/** The committed profile: equity intraday, brokerage 0.03% or ₹20 per order, whichever is lower (owner, 2026-10-31). */
 const intraday = must(loadFees());
 
 describe('charges, intraday golden cases (paise)', () => {
-  // Brokerage ₹20 flat per order; STT 1/4000 on sells; exchange 297/10^7; SEBI 1/10^6; IPFT 1/10^6;
+  // Brokerage 3/10000 capped at ₹20 per order; STT 1/4000 on sells; exchange 297/10^7; SEBI 1/10^6; IPFT 1/10^6;
   // stamp 3/100000 on buys; GST 18% of (brokerage + exchange + SEBI + IPFT); no DP charge.
   it('is the committed profile', () => {
     expect(intraday.profile).toBe('discount_broker_equity_intraday');
@@ -51,30 +53,86 @@ describe('charges, intraday golden cases (paise)', () => {
     });
     expect(c.total).toBe(5234n);
   });
-  it('SELL 1 at ₹100.25: the ₹20 brokerage dominates a small order', () => {
-    const c = computeCharges(intraday, 'SELL', 10_025n, { dpApplies: true });
-    // STT 2.50625 → 3 paise; exch 0.30, SEBI 0.01, IPFT 0.01 paise → 0; GST 18% × 2000.3178 = 360.06 → 360
+  it('BUY ₹10,000: under ₹66,667 the 0.03% brokerage is below the ₹20 cap', () => {
+    const c = computeCharges(intraday, 'BUY', 1_000_000n, { dpApplies: false });
+    // brokerage 3.00; exch 0.297 → 0.30; SEBI 0.01; IPFT 0.01; stamp 0.30;
+    // GST 18% × (3 + 0.297 + 0.01 + 0.01) = 0.5971 → 0.60
     expect(c.lines).toEqual({
-      brokerage: 2000n,
+      brokerage: 300n,
+      stt: 0n,
+      exchange: 30n,
+      sebi: 1n,
+      ipft: 1n,
+      stamp: 30n,
+      gst: 60n,
+      dp: 0n,
+    });
+    expect(c.total).toBe(422n);
+  });
+  it('the cap starts where 0.03% passes ₹20 (₹66,666.67), compared exactly', () => {
+    // 6,666,666 paise × 3/10000 = 1999.9998 → 2000 paise, from the rate
+    expect(computeCharges(intraday, 'SELL', 6_666_666n, { dpApplies: false }).lines.brokerage).toBe(
+      2000n,
+    );
+    // 6,666,667 paise × 3/10000 = 2000.0001 > 2000: the cap
+    expect(computeCharges(intraday, 'SELL', 6_666_667n, { dpApplies: false }).lines.brokerage).toBe(
+      2000n,
+    );
+    // ₹2,070 (Xing's average P1 order): brokerage 0.62, not 20
+    expect(computeCharges(intraday, 'BUY', 207_000n, { dpApplies: false }).lines.brokerage).toBe(
+      62n,
+    );
+  });
+  it('GST counts a capped brokerage as exactly ₹20', () => {
+    // ₹10,00,000 SELL: brokerage 20; exch 29.70; SEBI 1.00; IPFT 1.00; GST 18% × 51.70 = 9.306 → 9.31
+    const c = computeCharges(intraday, 'SELL', 100_000_000n, { dpApplies: false });
+    expect(c.lines.brokerage).toBe(2000n);
+    expect(c.lines.gst).toBe(931n);
+  });
+  it('SELL 1 at ₹100.25: a tiny order pays a tiny brokerage', () => {
+    const c = computeCharges(intraday, 'SELL', 10_025n, { dpApplies: true });
+    // brokerage 3.0075 → 3 paise; STT 2.50625 → 3; exch 0.30, SEBI 0.01, IPFT 0.01 paise → 0;
+    // GST 18% × 3.32532 = 0.5986 → 1
+    expect(c.lines).toEqual({
+      brokerage: 3n,
       stt: 3n,
       exchange: 0n,
       sebi: 0n,
       ipft: 0n,
       stamp: 0n,
-      gst: 360n,
+      gst: 1n,
       dp: 0n,
     });
-    expect(c.total).toBe(2363n);
+    expect(c.total).toBe(7n);
   });
-  it('charges the flat brokerage on a zero-value order too (it is per order)', () => {
-    expect(computeCharges(intraday, 'BUY', 0n, { dpApplies: false }).total).toBe(2360n);
+  it('a zero-value order pays nothing (no flat amount any more)', () => {
+    expect(computeCharges(intraday, 'BUY', 0n, { dpApplies: false }).total).toBe(0n);
   });
-  it('reports the flat amount and the percentages separately for the prompt', () => {
-    expect(flatPerOrderPaise(intraday, 'BUY')).toBe(2360n); // ₹20 + 18% GST
-    expect(flatPerOrderPaise(intraday, 'SELL')).toBe(2360n);
-    expect(costPctString(intraday, 'BUY')).toBe('0.007'); // 0.0067406%
+  it('reports the capped brokerage and the other percentages separately for the prompt', () => {
+    expect(flatPerOrderPaise(intraday, 'BUY')).toBe(0n);
+    expect(cappedCharges(intraday)).toEqual([
+      { label: 'Brokerage', ratePct: '0.03', maxPaise: 2000n, gstPct: '18' },
+    ]);
+    expect(costPctString(intraday, 'BUY')).toBe('0.007'); // 0.0067406%, brokerage excluded
     expect(costPctString(intraday, 'SELL')).toBe('0.029'); // 0.0287406%
     expect(flatPerOrderPaise(fees, 'BUY')).toBe(0n);
+    expect(cappedCharges(fees)).toEqual([]);
+  });
+  it('a flat amount still works, and a charge may not have both a flat amount and a cap', () => {
+    const flat = structuredClone(intraday);
+    flat.charges.brokerage = {
+      ...flat.charges.brokerage,
+      rate: { num: 0, den: 1 },
+      maxPaisePerOrder: undefined,
+      flatPaisePerOrder: '2000',
+    };
+    expect(flatPerOrderPaise(flat, 'BUY')).toBe(2360n); // ₹20 + 18% GST
+    expect(computeCharges(flat, 'BUY', 10_000_000n, { dpApplies: false }).total).toBe(3034n);
+    const both = { ...flat.charges.brokerage, maxPaisePerOrder: '2000' };
+    expect(
+      feesConfigSchema.safeParse({ ...flat, charges: { ...flat.charges, brokerage: both } })
+        .success,
+    ).toBe(false);
   });
 });
 

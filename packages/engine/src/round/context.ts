@@ -12,6 +12,8 @@ import {
   type MarketRow,
   type HoldingRow,
   type HistoryAction,
+  type ClosedTrade,
+  type DayScore,
 } from '../llm/prompt';
 import type { PortfolioState } from '../core/portfolio';
 import { IST } from './schedule';
@@ -208,6 +210,65 @@ export async function historyFor(
   return lines;
 }
 
+/**
+ * "YOUR DAY SO FAR" (owner, 2026-10-31): the value at today's open (the last day-end mark before
+ * today, or the starting cash), today's fills and costs, and the positions closed today with their
+ * gain before costs (a closing fill's realised P&L plus that order's charges).
+ */
+export async function dayScoreFor(
+  db: Queryable,
+  participantId: string,
+  tradingDate: string,
+  startingCashPaise: bigint,
+): Promise<DayScore> {
+  const start = await db.query<{ total_paise: string }>(
+    `SELECT total_paise FROM marks
+     WHERE participant_id = $1 AND kind = 'eod' AND marked_at < ($2::date)::timestamp AT TIME ZONE 'Asia/Kolkata'
+     ORDER BY marked_at DESC LIMIT 1`,
+    [participantId, tradingDate],
+  );
+  const fills = await db.query<{
+    side: 'BUY' | 'SELL';
+    symbol: string;
+    quantity: number;
+    price_paise: string;
+    position_after: number;
+    realized_pnl_paise: string | null;
+    charges_total_paise: string;
+  }>(
+    `SELECT l.side, l.symbol, l.quantity, l.price_paise, l.position_after, l.realized_pnl_paise, l.charges_total_paise
+     FROM ledger l JOIN rounds r ON r.id = l.round_id
+     WHERE l.participant_id = $1 AND r.trading_date = $2::date AND l.entry_type IN ('BUY','SELL')
+     ORDER BY l.seq`,
+    [participantId, tradingDate],
+  );
+  let costs = 0n;
+  const closed: ClosedTrade[] = [];
+  for (const f of fills.rows) {
+    const charges = BigInt(f.charges_total_paise);
+    costs += charges;
+    if (f.realized_pnl_paise === null) continue;
+    const before = f.position_after - (f.side === 'BUY' ? f.quantity : -f.quantity);
+    const qty =
+      f.side === 'SELL'
+        ? Math.min(f.quantity, Math.max(before, 0))
+        : Math.min(f.quantity, Math.max(-before, 0));
+    closed.push({
+      symbol: f.symbol,
+      direction: f.side === 'SELL' ? 'long' : 'short',
+      quantity: qty,
+      exitPricePaise: BigInt(f.price_paise),
+      gainBeforeCostsPaise: BigInt(f.realized_pnl_paise) + charges,
+    });
+  }
+  return {
+    dayStartValuePaise: start.rows[0] ? BigInt(start.rows[0].total_paise) : startingCashPaise,
+    orders: fills.rows.length,
+    costsPaise: costs,
+    closed,
+  };
+}
+
 export async function lastNoteToSelf(db: Queryable, participantId: string): Promise<string | null> {
   const r = await db.query<{ note_to_self: string | null }>(
     `SELECT note_to_self FROM decisions WHERE participant_id = $1 AND status = 'OK' ORDER BY created_at DESC LIMIT 1`,
@@ -233,6 +294,7 @@ export interface PrivateBlockInput {
   /** Intraday product: the square-off time and the exposure limit, for the prompt. */
   squareOffAt?: string | null;
   maxGrossExposurePct?: number;
+  day?: DayScore | null;
 }
 
 export function buildPrivateBlock(p: PrivateBlockInput): string {
@@ -265,5 +327,6 @@ export function buildPrivateBlock(p: PrivateBlockInput): string {
     noteToSelf: p.noteToSelf,
     squareOffAt: p.squareOffAt ?? null,
     maxGrossExposurePct: p.maxGrossExposurePct ?? 100,
+    day: p.day ?? null,
   });
 }

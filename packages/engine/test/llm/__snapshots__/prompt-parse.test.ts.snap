@@ -1,6 +1,31 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`prompt renderer (SPEC §10) > renders the intraday long-short rules, the square-off and the ₹20 brokerage 1`] = `
+exports[`intraday private block > shows the day so far: value at the open, change, costs and closed positions 1`] = `
+"ROUND 3 of 4 today, Monday 2026-11-02, 12:30 IST. Season day 1 of 20. Next round: Monday 2026-11-02 14:00 IST. Square-off: 15:00 IST today.
+
+YOUR PORTFOLIO
+Cash: 99900.00 INR
+Positions value (longs minus shorts): 0.00 INR
+Total value: 99900.00 INR (-0.10% since season start)
+Exposure (longs plus shorts): 0.00 INR (0.00% of total value; limit 100%)
+Positions (symbol, qty, avg_price, last_price, value, weight_pct, unrealized_pnl; a negative qty is a short):
+none
+
+YOUR DAY SO FAR
+Value at today's open: 100000.00 INR. Change today: -100.00 INR (-0.10%), costs included.
+Orders filled today: 4. Costs paid today: 12.34 INR.
+Positions closed today (symbol, long_or_short, qty, exit_price, gain_before_costs):
+TCS, long, 10, 3420.50, 85.00
+ITC, short, 20, 410.00, -20.00
+
+YOUR LAST 5 ROUNDS (newest first)
+none
+
+YOUR NOTE TO SELF FROM LAST ROUND
+none"
+`;
+
+exports[`prompt renderer (SPEC §10) > renders the intraday long-short rules, the square-off and the capped brokerage 1`] = `
 "You are a portfolio manager in AI Arena, a public competition between AI models trading Indian stocks with paper money at real prices on the National Stock Exchange (NSE). Each round you receive the same market data as every other competitor plus your own portfolio, and you decide what to trade.
 
 Objective: finish the season with the highest total portfolio value (cash plus positions at market prices). The season runs from 2026-10-27 to 2026-11-24 (20 trading days). Every competitor started with 100000.00 INR.
@@ -15,7 +40,7 @@ Rules. They are enforced by code; an action that breaks one is rejected, and the
 7. At most 5 actions per round. All SELLs run first, then all BUYs, each in the order you list them, so cash from sells can fund buys.
 8. Don't BUY a symbol you are also selling in the same round.
 9. Orders fill a minute or two after you answer, at the live best ask (BUY) or best bid (SELL), not at the prices shown here.
-10. Costs: 23.60 INR per order (brokerage with GST), plus about 0.007% of trade value on a BUY and about 0.029% on a SELL.
+10. Costs: brokerage of 0.03% of trade value or 20.00 INR per order, whichever is lower, plus 18% GST on it; other costs about 0.007% of trade value on a BUY and about 0.029% on a SELL.
 11. To make no trades, return an empty actions list.
 
 There are 4 rounds per trading day, at 09:30, 11:00, 12:30, 14:00 IST, then the square-off at 15:00 IST. Your strategy, reasoning, actions and note to self are published 15 minutes after each round.

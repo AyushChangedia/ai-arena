@@ -30,6 +30,7 @@ import {
   pricesWithFallback,
   historyFor,
   lastNoteToSelf,
+  dayScoreFor,
 } from '../round/context';
 import { slotTimes, weekdayName, IST } from '../round/schedule';
 import {
@@ -191,6 +192,7 @@ export async function decideCommand(args: ParsedArgs): Promise<number> {
           squareOffAt:
             ctx.arena.product === 'intraday_long_short' ? ctx.arena.intraday!.squareOffFrom : null,
           maxGrossExposurePct: ctx.arena.limits.maxGrossExposurePct,
+          day: part && db ? await dayScoreFor(db, part.id, tradingDate, startCash) : null,
         });
         const rec = await decideWithModel({
           client,

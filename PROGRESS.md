@@ -75,6 +75,12 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 - `admin.yml` run 7, `end-season P2` → "Season P2 ended before its first round."
 - Left for the owner: switch `ARENA_MODE` to `live` in GitHub and Vercel (see "Blocked on the human"). A one-off check at 08:00 IST on 2 Nov confirms the GitHub variable.
 
+**Before S1 (owner, 2026-10-31: the models lost money in P1).** P1's ledger showed the losses came from costs, not trades: before costs Nemotron made +₹527.30, Gemma +₹29.80, Xing +₹3.85, Flint +₹2.00; costs were ₹329.79, ₹110.68, ₹623.10 and ₹107.86. Xing's 26 orders averaged ₹2,070, each paying ₹23.60 brokerage with GST. The owner chose two of four offered changes (not the cost hint in the prompt, not higher reasoning effort):
+
+- Brokerage is now 0.03% or ₹20 per order, whichever is lower (Zerodha's intraday rule): `maxPaisePerOrder` cap in the fee schema, GST on the capped amount, prompt cost line, rules page, SPEC §3/§10/§11.5, SETUP step 11. On P1's fills it would have saved Xing ₹594.55, the Monkey ₹205.39, Nemotron ₹190.18, Flint ₹67.50, Gemma ₹61.87. ₹1 lakh orders cost the same as before (₹30.34 BUY, ₹52.34 SELL); a ₹10,000 BUY costs ₹4.22 (was ₹24.28).
+- "YOUR DAY SO FAR" in every model's private block (SPEC §10.2): value at today's open, change today, orders and costs today, and positions closed today with their gain before costs (`dayScoreFor`).
+- Verified: `pnpm check` → 296 unit/property tests, guards clean; `pnpm test:int` → 66 passed (new `dayScoreFor` checks on the intraday day: the short and its cover, and the next day's open from the day-end mark). Golden fee cases added by hand (₹10,000 BUY, the ₹66,666.67 cap boundary, GST on a capped brokerage, a ₹100.25 SELL). Not verified: the new rates against a broker calculator (SETUP step 11 now includes a ₹10,000 check); the models' behaviour with the new block (first seen on 2 Nov).
+
 Launch checklist items (SPEC §22, SETUP step 26) not done at go-live, the owner's call to start anyway: intraday fees not checked against a broker calculator (`verifiedOn: null`); Healthchecks not configured; Angel One display confirmation not asked (the "after close" policy stays on); Lighthouse on the production URL not run; Nemotron 3 Ultra's availability in market hours untested.
 
 Earlier: practice season P2 (Nemotron 3 Ultra in place of Gemma 4 31B) was scheduled from Monday 2 Nov 2026. Done 2026-10-30 after PR #15 merged (`3616a57`), SETUP.md step 23b:
@@ -121,6 +127,7 @@ See SETUP.md (numbered steps, in order). Nothing here blocks the build.
     - Whether the free models fill in `strategy` and `exit_plan`. Nemotron and Xing get them enforced by structured outputs; Gemma and Flint only by the prompt (a missing strategy shows "No strategy given").
   - Known gaps:
     - `pnpm engine replay` uses the current config, so S0's rounds (delivery charges) no longer replay with the committed fees. To replay them, use the delivery fixture config (`packages/engine/test/fixtures/delivery/`).
+    - Likewise P1's rounds ran with a flat ₹20 brokerage; since 2026-10-31 the committed fees cap it at 0.03% or ₹20. To replay P1, use `config/fees.json` from commit `ad96dc1` or earlier.
     - A forced cover still needs cash. It would only fail if a short more than doubled in a day (impossible under the 100% exposure limit and NSE price bands); it would then stay open with an incident.
     - Corporate actions aren't applied to shorts. Nothing is held overnight under intraday, unless a square-off fails completely, which raises a critical incident.
 

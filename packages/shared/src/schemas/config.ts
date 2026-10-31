@@ -155,12 +155,20 @@ export type ArenaConfig = z.infer<typeof arenaConfigSchema>;
 const chargeSchema = z
   .object({
     rate: fraction,
-    /** A flat amount per executed order, added to the rate (brokerage: ₹20 an order, the owner's choice). */
+    /** A flat amount per executed order, added to the rate. */
     flatPaisePerOrder: intString.optional(),
+    /**
+     * A cap per executed order: the charge is the lower of rate × value and this amount (brokerage:
+     * 0.03% or ₹20, whichever is lower, as discount brokers charge for intraday; owner, 2026-10-31).
+     */
+    maxPaisePerOrder: intString.optional(),
     appliesTo: z.enum(['buy', 'sell', 'both']),
     label: z.string(),
   })
-  .strict();
+  .strict()
+  .refine((c) => c.flatPaisePerOrder === undefined || c.maxPaisePerOrder === undefined, {
+    message: 'a charge has either a flat amount or a cap per order, not both',
+  });
 
 export const feesConfigSchema = z
   .object({
