@@ -15,7 +15,7 @@ import { currentSeason } from '../../src/round/store';
 import { reconcile } from '../../src/round/reconcile';
 import { replayRound } from '../../src/round/replay';
 import { loadLedger } from '../../src/round/ledger-store';
-import { historyFor } from '../../src/round/context';
+import { historyFor, dayScoreFor } from '../../src/round/context';
 import { computeCharges } from '../../src/core/fees';
 
 const DAY = '2026-10-19'; // a Monday in the past
@@ -182,6 +182,24 @@ describe('intraday day 1: a short, the square-off, end of day', () => {
     const season = (await currentSeason(w.db, 'shadow', DAY))!;
     const h = await historyFor(w.db, season.id, 'P1-openai', null);
     expect(h[0]).toBe(`${DAY} 15:02 square-off: BUY 10 AAA filled at 950.50`);
+    // "YOUR DAY SO FAR" (owner, 2026-10-31): the short and its cover, with the gain before costs.
+    const sellCharges = computeCharges(w.deps.fees, 'SELL', 99_950n * 10n, {
+      dpApplies: false,
+    }).total;
+    expect(await dayScoreFor(w.db, 'P1-openai', DAY, season.starting_cash_paise)).toEqual({
+      dayStartValuePaise: season.starting_cash_paise,
+      orders: 2,
+      costsPaise: sellCharges + charges,
+      closed: [
+        {
+          symbol: 'AAA',
+          direction: 'short',
+          quantity: 10,
+          exitPricePaise: 95_050n,
+          gainBeforeCostsPaise: (99_950n - 95_050n) * 10n,
+        },
+      ],
+    });
   });
 
   it('nothing is left to square off at 15:12, and end of day marks everyone in cash', async () => {
@@ -198,6 +216,18 @@ describe('intraday day 1: a short, the square-off, end of day', () => {
       )
     ).rows;
     expect(eod.length).toBe(6);
+    // The next day starts from this day-end mark, with nothing done yet.
+    const openaiEod = (
+      await w.db.query(
+        "SELECT total_paise FROM marks WHERE participant_id = 'P1-openai' AND kind = 'eod' ORDER BY marked_at DESC LIMIT 1",
+      )
+    ).rows[0].total_paise;
+    expect(await dayScoreFor(w.db, 'P1-openai', DAY2, 0n)).toEqual({
+      dayStartValuePaise: BigInt(openaiEod),
+      orders: 0,
+      costsPaise: 0n,
+      closed: [],
+    });
     expect(eod.every((m) => m.holdings_value_paise === '0')).toBe(true);
     w.clock.t = at(DAY, '16:05');
     const r3 = await tickNow();

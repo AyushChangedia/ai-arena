@@ -49,7 +49,7 @@ describe('prompt renderer (SPEC §10)', () => {
     expect(s).toContain('2. Long-only cash delivery: no short selling');
     expect(s).not.toMatch(/OpenAI|Anthropic|Google|Meta|DeepSeek/);
   });
-  it('renders the intraday long-short rules, the square-off and the ₹20 brokerage', () => {
+  it('renders the intraday long-short rules, the square-off and the capped brokerage', () => {
     const s = renderSystemPrompt(arena, fees, {
       seasonStart: '2026-10-27',
       seasonEnd: '2026-11-24',
@@ -68,7 +68,7 @@ describe('prompt renderer (SPEC §10)', () => {
       'longs plus shorts at market value may not be more than 100% of your total value.',
     );
     expect(s).toContain(
-      'Costs: 23.60 INR per order (brokerage with GST), plus about 0.007% of trade value on a BUY and about 0.029% on a SELL.',
+      'Costs: brokerage of 0.03% of trade value or 20.00 INR per order, whichever is lower, plus 18% GST on it; other costs about 0.007% of trade value on a BUY and about 0.029% on a SELL.',
     );
     expect(s).toContain('at 09:30, 11:00, 12:30, 14:00 IST, then the square-off at 15:00 IST.');
     expect(s).toContain('"strategy": "<your trading approach, up to 600 characters>"');
@@ -264,6 +264,70 @@ describe('intraday private block', () => {
     // A short gains when the price falls: (3400 − 3410) × −5 = +50.
     expect(b).toContain('TCS, -5, 3410.00, 3400.00, -17000.00, -14.39, 50.00');
     expect(b).toContain('INFY, 10, 1500.00, 1510.00, 15100.00, 12.79, 100.00');
+    expect(b).not.toContain('YOUR DAY SO FAR');
+  });
+
+  it('shows the day so far: value at the open, change, costs and closed positions', () => {
+    const base = {
+      round: 3,
+      roundsToday: 4,
+      weekday: 'Monday',
+      date: '2026-11-02',
+      time: '12:30',
+      seasonDay: 1,
+      seasonDays: 20,
+      nextRound: 'Monday 2026-11-02 14:00 IST',
+      cashPaise: 9_990_000n,
+      startingCashPaise: 10_000_000n,
+      holdings: [],
+      history: [],
+      noteToSelf: null,
+      squareOffAt: '15:00',
+      maxGrossExposurePct: 100,
+    };
+    const b = renderPrivateBlock({
+      ...base,
+      day: {
+        dayStartValuePaise: 10_000_000n,
+        orders: 4,
+        costsPaise: 1_234n,
+        closed: [
+          {
+            symbol: 'TCS',
+            direction: 'long',
+            quantity: 10,
+            exitPricePaise: 342_050n,
+            gainBeforeCostsPaise: 8_500n,
+          },
+          {
+            symbol: 'ITC',
+            direction: 'short',
+            quantity: 20,
+            exitPricePaise: 41_000n,
+            gainBeforeCostsPaise: -2_000n,
+          },
+        ],
+      },
+    });
+    expect(b).toMatchSnapshot();
+    // Total 99900 against 100000 at the open.
+    expect(b).toContain(
+      "YOUR DAY SO FAR\nValue at today's open: 100000.00 INR. Change today: -100.00 INR (-0.10%), costs included.",
+    );
+    expect(b).toContain('Orders filled today: 4. Costs paid today: 12.34 INR.');
+    expect(b).toContain(
+      'Positions closed today (symbol, long_or_short, qty, exit_price, gain_before_costs):\nTCS, long, 10, 3420.50, 85.00\nITC, short, 20, 410.00, -20.00',
+    );
+    // The section sits between the portfolio and the last rounds.
+    expect(b.indexOf('YOUR DAY SO FAR')).toBeGreaterThan(b.indexOf('YOUR PORTFOLIO'));
+    expect(b.indexOf('YOUR DAY SO FAR')).toBeLessThan(b.indexOf('YOUR LAST 5 ROUNDS'));
+    const none = renderPrivateBlock({
+      ...base,
+      day: { dayStartValuePaise: 10_000_000n, orders: 0, costsPaise: 0n, closed: [] },
+    });
+    expect(none).toContain(
+      'Orders filled today: 0. Costs paid today: 0.00 INR.\nPositions closed today: none',
+    );
   });
 });
 

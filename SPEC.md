@@ -110,7 +110,7 @@ All values live in `config/arena.json`. Code reads the config; the `/rules` page
 | Execution order | All SELLs (in the model's order), then all BUYs (in the model's order); each checked against the running state |
 | Same symbol both sides | A BUY of a symbol that is also sold in the same round is rejected |
 | Fill price | BUY at best ask, SELL at best bid from the fill snapshot. If depth is missing: last traded price ± 5 bps slippage. The method used is recorded |
-| Costs | Real Indian equity-intraday charges, discount-broker profile, with a flat ₹20 brokerage per executed order (the owner's choice, 2026-10-26), `config/fees.json` (§11.5) |
+| Costs | Real Indian equity-intraday charges, discount-broker profile, with brokerage of 0.03% or ₹20 per executed order, whichever is lower (the owner's choice, 2026-10-31; a flat ₹20 from 2026-10-26), `config/fees.json` (§11.5) |
 | Sale proceeds | Usable immediately in the same round (simplification, disclosed on /rules) |
 | Corporate actions | Intraday: none apply, since nothing is held overnight. (Delivery: splits and bonuses adjust quantity and average cost on the ex-date; cash dividends are credited on the ex-date for shares held at the previous close.) |
 | Strategy | Each answer states the model's strategy, and each action the signal behind it (`why`) and an exit plan (the owner's request, 2026-10-26; §10.3). Published, never acted on |
@@ -376,7 +376,7 @@ For every call record: prompt hash, request parameters (no secrets), raw respons
 
 ## 10. The trader prompt
 
-**Since 2026-10-26 (the owner's decisions):** the rules list is rendered for the configured product. For `intraday_long_short` it replaces rules 2, 4 and 5 below with: intraday long or short (a short has a negative quantity); the square-off from `intraday.squareOffFrom` (by `squareOffDeadline` at the latest), nothing held overnight; net positions (a SELL closes a long first, then opens a short; a BUY covers a short first, then opens a long; a BUY needs cash for its full cost); the concentration limit for any trade that opens or adds to a position, long or short, plus the exposure limit. Costs read "{flat} INR per order (brokerage with GST), plus about {buy}% … and about {sell}% …" with no DP charge. The schedule line adds "then the square-off at {time} IST". Every product adds an "Explain your trading" paragraph asking for a strategy, a `why` (the signal and what the model expects) and an `exit_plan` per action, stating that an exit plan is not an order, and the reply format adds `"strategy"` (up to 600 characters) and `"exit_plan"` (up to 200 characters); `why` grows to 400 characters. The per-round message under intraday adds "Square-off: {time} IST today." to the first line and shows "Positions value (longs minus shorts)", "Exposure (longs plus shorts) … limit {pct}%" and signed positions. The engine's snapshot tests pin both renderings.
+**Since 2026-10-26 (the owner's decisions):** the rules list is rendered for the configured product. For `intraday_long_short` it replaces rules 2, 4 and 5 below with: intraday long or short (a short has a negative quantity); the square-off from `intraday.squareOffFrom` (by `squareOffDeadline` at the latest), nothing held overnight; net positions (a SELL closes a long first, then opens a short; a BUY covers a short first, then opens a long; a BUY needs cash for its full cost); the concentration limit for any trade that opens or adds to a position, long or short, plus the exposure limit. Costs read "brokerage of {rate}% of trade value or {cap} INR per order, whichever is lower, plus {gst}% GST on it; other costs about {buy}% … and about {sell}% …" with no DP charge (a flat brokerage reads "{flat} INR per order (brokerage with GST), plus about …"). The schedule line adds "then the square-off at {time} IST". Every product adds an "Explain your trading" paragraph asking for a strategy, a `why` (the signal and what the model expects) and an `exit_plan` per action, stating that an exit plan is not an order, and the reply format adds `"strategy"` (up to 600 characters) and `"exit_plan"` (up to 200 characters); `why` grows to 400 characters. The per-round message under intraday adds "Square-off: {time} IST today." to the first line and shows "Positions value (longs minus shorts)", "Exposure (longs plus shorts) … limit {pct}%" and signed positions. The engine's snapshot tests pin both renderings.
 
 Identical for every participant. Don't tell a model which lab it is or who it's competing against. All numbers come from the engine's data; bracketed values are filled from config and the database. Numbers in the prompt are plain decimals (no lakh commas, no ₹ symbol) to avoid parsing mistakes.
 
@@ -437,6 +437,16 @@ Columns: symbol,ltp,chg_pct,open,high,low,prev_close,vol_today,avg_vol_20d,ret_5
 NO_PRICE this round: {symbols with reason, or "none"}
 ```
 
+**Since 2026-10-31 (the owner's choice, "daily scorecard"):** between YOUR PORTFOLIO and YOUR LAST 5 ROUNDS every model also sees its own day so far, computed by the engine from the ledger and marks:
+
+```
+YOUR DAY SO FAR
+Value at today's open: {last day-end mark before today, or the starting cash} INR. Change today: {total − that} INR ({pct}%), costs included.
+Orders filled today: {n}. Costs paid today: {sum of today's charges} INR.
+Positions closed today (symbol, long_or_short, qty, exit_price, gain_before_costs):
+{one row per closing fill today: the closed quantity, the fill price, and (exit − entry) × qty for a long or (entry − exit) × qty for a short; or "Positions closed today: none"}
+```
+
 ### 10.3 Answer schema (zod, enforced after parsing)
 
 - `strategy` (since 2026-10-26): string, the model's approach (setups, sizing, exits); stored in `decisions.strategy`, displayed up to 600 characters on its panel, the round page and the Thinking tab. Missing → flag `missing_strategy` and "No strategy given"; it never blocks the trades.
@@ -488,7 +498,7 @@ Only "model's fault" codes count against the model's accepted-action rate.
 
 ### 11.5 Charges
 
-**Intraday profile (committed since 2026-10-26, the owner's choice):** brokerage a flat ₹20 per executed order (`flatPaisePerOrder: "2000"`; real discount brokers charge the lower of ₹20 and 0.03%), STT 0.025% (1/4000) on the sell side only, exchange 0.00297%, SEBI ₹10 per crore, IPFT ₹0.10 per lakh (as below), stamp duty 0.003% (3/100,000) on buys, GST 18% on brokerage + exchange + SEBI + IPFT (the flat brokerage included), no DP charge (`dpCharge: null`). A charge may carry a rate and a flat amount per order; the flat part is added before rounding, and GST applies to the exact base including it. The delivery profile below is kept as a test fixture (`packages/engine/test/fixtures/delivery/`) with its golden cases; intraday has its own golden cases.
+**Intraday profile (committed since 2026-10-26, the owner's choice):** brokerage 0.03% of each executed order or ₹20, whichever is lower, as discount brokers charge (`rate` 3/10000 with `maxPaisePerOrder: "2000"`; the owner's choice on 2026-10-31, after P1 showed a flat ₹20 eating every model's profit on small orders; a flat ₹20 from 2026-10-26), STT 0.025% (1/4000) on the sell side only, exchange 0.00297%, SEBI ₹10 per crore, IPFT ₹0.10 per lakh (as below), stamp duty 0.003% (3/100,000) on buys, GST 18% on brokerage + exchange + SEBI + IPFT, no DP charge (`dpCharge: null`). A charge may carry a rate plus a flat amount per order (the flat part is added before rounding), or a rate capped per order (the lower of the exact rate amount and the cap; never both); GST applies to the exact base, counting a capped charge as exactly its cap. The delivery profile below is kept as a test fixture (`packages/engine/test/fixtures/delivery/`) with its golden cases; intraday has its own golden cases.
 
 `config/fees.json` stores each rate as an exact fraction (numerator/denominator), plus source URLs and a `verifiedOn` date. Defaults, from the brokers' published charges pages for equity delivery as of October 2026 (re-verify in Phase 2 and record the date):
 

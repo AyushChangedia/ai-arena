@@ -1,8 +1,9 @@
 /**
  * Equity charges (SPEC §11.5), computed in BigInt paise from config/fees.json: a rate (exact fraction)
- * plus an optional flat amount per order (brokerage). Each charge is rounded half-up to the nearest
- * paisa per order. GST is 18% of the unrounded sum of its base charges, then rounded. The DP charge
- * (delivery only) is a flat amount on the first SELL of a symbol per day.
+ * plus an optional flat amount per order, or a rate capped per order (brokerage: the lower of 0.03%
+ * and ₹20). Each charge is rounded half-up to the nearest paisa per order. GST is 18% of the unrounded
+ * sum of its base charges, then rounded. The DP charge (delivery only) is a flat amount on the first
+ * SELL of a symbol per day.
  */
 import type { FeesConfig, ChargeName } from '@arena/shared/schemas';
 import { divRoundHalfUp } from '@arena/shared/money';
@@ -36,6 +37,13 @@ const gcd = (a: bigint, b: bigint): bigint => (b === 0n ? a : gcd(b, a % b));
 const flatOf = (c: { flatPaisePerOrder?: string | undefined }): bigint =>
   c.flatPaisePerOrder === undefined ? 0n : BigInt(c.flatPaisePerOrder);
 
+type Charge = FeesConfig['charges'][ChargeName];
+
+/** True when rate × value exceeds the charge's cap, so the cap applies (compared exactly). */
+const capped = (c: Charge, valuePaise: bigint): boolean =>
+  c.maxPaisePerOrder !== undefined &&
+  valuePaise * BigInt(c.rate.num) > BigInt(c.maxPaisePerOrder) * BigInt(c.rate.den);
+
 export function computeCharges(
   fees: FeesConfig,
   side: Side,
@@ -57,15 +65,22 @@ export function computeCharges(
   for (const name of names) {
     const c = fees.charges[name];
     if (!applies(c.appliesTo, side)) continue;
-    lines[name] = divRoundHalfUp(valuePaise * BigInt(c.rate.num), BigInt(c.rate.den)) + flatOf(c);
+    lines[name] = capped(c, valuePaise)
+      ? BigInt(c.maxPaisePerOrder!)
+      : divRoundHalfUp(valuePaise * BigInt(c.rate.num), BigInt(c.rate.den)) + flatOf(c);
   }
-  // GST on the exact (unrounded) base: (value × Σ(num_i/den_i) + Σ flat_i) × gstNum/gstDen.
+  // GST on the exact (unrounded) base: (value × Σ(num_i/den_i) + Σ flat_i) × gstNum/gstDen,
+  // where a charge at its cap counts as a flat amount.
   let num = 0n;
   let den = 1n;
   let flat = 0n;
   for (const name of fees.gst.on) {
     const c = fees.charges[name];
     if (!applies(c.appliesTo, side)) continue;
+    if (capped(c, valuePaise)) {
+      flat += BigInt(c.maxPaisePerOrder!);
+      continue;
+    }
     const n = BigInt(c.rate.num);
     const d = BigInt(c.rate.den);
     num = num * d + n * den;
@@ -88,7 +103,7 @@ export function computeCharges(
 
 /**
  * Charge rate for one side as a percentage string with 3 decimals, excluding flat per-order amounts
- * (see flatPerOrderPaise) and the DP charge. For the prompt.
+ * (see flatPerOrderPaise), capped charges (see cappedCharges) and the DP charge. For the prompt.
  */
 export function costPctString(fees: FeesConfig, side: Side): string {
   // Evaluate on ₹1 crore (1e9 paise) so rounding is far below the displayed precision.
@@ -108,9 +123,39 @@ export function costPctString(fees: FeesConfig, side: Side): string {
 
 function withoutFlat(fees: FeesConfig): FeesConfig {
   const charges = Object.fromEntries(
-    Object.entries(fees.charges).map(([k, c]) => [k, { ...c, flatPaisePerOrder: undefined }]),
+    Object.entries(fees.charges).map(([k, c]) => [
+      k,
+      c.maxPaisePerOrder !== undefined
+        ? { ...c, rate: { num: 0, den: 1 }, maxPaisePerOrder: undefined }
+        : { ...c, flatPaisePerOrder: undefined },
+    ]),
   ) as FeesConfig['charges'];
   return { ...fees, charges };
+}
+
+/** Charges with a per-order cap, for the prompt: e.g. brokerage 0.03% or ₹20, whichever is lower. */
+export function cappedCharges(
+  fees: FeesConfig,
+): { label: string; ratePct: string; maxPaise: bigint; gstPct: string | null }[] {
+  const pct = (num: number, den: number) => {
+    const t = divRoundHalfUp(BigInt(num) * 1_000_000n, BigInt(den)); // percent × 10^4
+    return `${t / 10_000n}.${(t % 10_000n).toString().padStart(4, '0')}`
+      .replace(/0+$/, '')
+      .replace(/\.$/, '');
+  };
+  return (Object.keys(fees.charges) as ChargeName[]).flatMap((name) => {
+    const c = fees.charges[name];
+    if (c.maxPaisePerOrder === undefined) return [];
+    const gstOn = (fees.gst.on as string[]).includes(name);
+    return [
+      {
+        label: c.label,
+        ratePct: pct(c.rate.num, c.rate.den),
+        maxPaise: BigInt(c.maxPaisePerOrder),
+        gstPct: gstOn ? pct(fees.gst.rate.num, fees.gst.rate.den) : null,
+      },
+    ];
+  });
 }
 
 /** Flat amount per executed order on one side, GST included (e.g. ₹20 brokerage → 2360 paise). */

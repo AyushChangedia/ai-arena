@@ -134,7 +134,9 @@ test.describe('populated shadow season', () => {
         /^From 15:00 IST \(by 15:15 at the latest\) the engine closes every open position/,
       ),
     ).toBeVisible();
-    await expect(page.getByRole('cell', { name: '₹20.00 per order' })).toBeVisible();
+    await expect(
+      page.getByRole('cell', { name: '0.03% or ₹20.00, whichever is lower' }),
+    ).toBeVisible();
   });
 
   test('every page renders and is axe-clean', async ({ page }, info) => {

@@ -149,7 +149,7 @@ async function main() {
   }
 
   const days = ['2026-10-19', '2026-10-20'];
-  // The committed rules: intraday long-short, ₹20 brokerage, square-off from 15:00.
+  // The committed rules: intraday long-short, brokerage 0.03% or ₹20, square-off from 15:00.
   const w = makeWorld(
     urlFor(dbName, 'engine_rw'),
     new Date(`${days[0]}T09:30:30+05:30`),

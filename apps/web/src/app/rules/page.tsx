@@ -86,7 +86,7 @@ async function Rules() {
     io
       ? [
           'Costs',
-          'Real Indian equity-intraday charges for a discount broker, with ₹20 brokerage per order (below)',
+          'Real Indian equity-intraday charges for a discount broker, with brokerage of 0.03% or ₹20 per order, whichever is lower (below)',
         ]
       : ['Costs', 'Real Indian equity-delivery charges for a discount broker (below)'],
     ['Sale proceeds', 'Usable immediately in the same round'],
@@ -118,12 +118,15 @@ async function Rules() {
       (c) =>
         [
           c.label,
-          c.flatPaisePerOrder !== undefined && c.rate.num === 0
-            ? `${formatInr(BigInt(c.flatPaisePerOrder))} per order`
-            : c.rate.num === 0
-              ? '₹0'
-              : pct(c.rate.num, c.rate.den),
-          c.flatPaisePerOrder !== undefined && c.rate.num === 0
+          c.maxPaisePerOrder !== undefined
+            ? `${pct(c.rate.num, c.rate.den)} or ${formatInr(BigInt(c.maxPaisePerOrder))}, whichever is lower`
+            : c.flatPaisePerOrder !== undefined && c.rate.num === 0
+              ? `${formatInr(BigInt(c.flatPaisePerOrder))} per order`
+              : c.rate.num === 0
+                ? '₹0'
+                : pct(c.rate.num, c.rate.den),
+          c.maxPaisePerOrder !== undefined ||
+          (c.flatPaisePerOrder !== undefined && c.rate.num === 0)
             ? c.appliesTo === 'both'
               ? 'Each buy and sell order'
               : c.appliesTo === 'buy'
