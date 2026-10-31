@@ -69,7 +69,11 @@ The owner set these overrides for the end-to-end build (2026-10-24). Every later
 
 ## In progress
 
-Practice season P2 (Nemotron 3 Ultra in place of Gemma 4 31B) starts Monday 2 Nov 2026 at 09:30 IST. Done 2026-10-30 after PR #15 merged (`3616a57`), SETUP.md step 23b:
+**Season 1 (live) starts Monday 2 Nov 2026 at 09:30 IST** (owner, 2026-10-31: "start the season 1 from monday"). The roster in `config/models.json` is approved (Nemotron 3.5 Super VL, Nemotron 3 Ultra, Xing, Flint). SETUP.md step 28: Claude runs `start-season S1 --mode live` and ends the unstarted practice season P2; the owner switches `ARENA_MODE` to `live` in GitHub and Vercel (see "Blocked on the human").
+
+Launch checklist items (SPEC §22, SETUP step 26) not done at go-live, the owner's call to start anyway: intraday fees not checked against a broker calculator (`verifiedOn: null`); Healthchecks not configured; Angel One display confirmation not asked (the "after close" policy stays on); Lighthouse on the production URL not run; Nemotron 3 Ultra's availability in market hours untested.
+
+Earlier: practice season P2 (Nemotron 3 Ultra in place of Gemma 4 31B) was scheduled from Monday 2 Nov 2026. Done 2026-10-30 after PR #15 merged (`3616a57`), SETUP.md step 23b:
 
 - `admin.yml` run 4, `end-season P1` → "Season P1 finished early after 4 trading day(s), on 2026-10-30. Its standings are frozen at that day's marks."
 - `admin.yml` run 5, `start-season P2 --start 2026-11-02 --mode shadow` → "Season P2 (shadow) scheduled: 2026-11-02 to 2026-12-01, 20 trading days."
@@ -78,6 +82,11 @@ Practice season P2 (Nemotron 3 Ultra in place of Gemma 4 31B) starts Monday 2 No
 ## Blocked on the human
 
 See SETUP.md (numbered steps, in order). Nothing here blocks the build.
+
+**For Season 1, before 08:30 IST on Monday 2 Nov 2026:**
+
+1. GitHub → repository **Settings** → **Secrets and variables** → **Actions** → **Variables** tab → `ARENA_MODE` → change `shadow` to `live` → **Update variable**.
+2. Vercel → project **ai-arena-a511** → **Settings** → **Environment Variables** → `ARENA_MODE` (Production) → change to `live` → **Save**, then **Deployments** → latest production deployment → **⋯** → **Redeploy**.
 
 **Owner decision, 2026-10-26: "never ask for merge".** Claude sessions merge their own PRs once CI passes, and say what they merged.
 
