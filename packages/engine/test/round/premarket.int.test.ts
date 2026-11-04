@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createTestDb, type TestDb } from '../../../db/test/helpers';
-import { makeWorld, buyOnce, type World } from '../helpers/world';
+import { makeWorld, buyOnce, answer, type World } from '../helpers/world';
 import {
   startSeason,
   corpAction,
@@ -215,5 +215,83 @@ describe('admin commands write the public admin log', () => {
       w.deps.universe.constituents.map((c) => c.symbol),
     );
     expect(r.mismatches).toEqual([]);
+  });
+
+  it('a model retired with nothing open still gets its RETIRE entry, once', async () => {
+    const season = (await currentSeason(w.db, 'shadow', '2026-10-21'))!;
+    const retires = async (id: string) =>
+      (
+        await w.db.query(
+          "SELECT count(*)::int AS n FROM ledger WHERE participant_id = $1 AND entry_type = 'RETIRE'",
+          [id],
+        )
+      ).rows[0].n;
+    // anthropic sells what it holds, so it has nothing open when it is retired.
+    const held =
+      (
+        await w.db.query(
+          "SELECT quantity FROM positions WHERE participant_id = 'S0-anthropic' AND symbol = 'AAA'",
+        )
+      ).rows[0]?.quantity ?? 0;
+    expect(held).toBeGreaterThan(0);
+    w.setLlm((model) =>
+      answer(model, {
+        reasoning: `${model} thinks.`,
+        actions: model.startsWith('anthropic')
+          ? [{ side: 'SELL', symbol: 'AAA', quantity: held, why: 'test' }]
+          : [],
+        note_to_self: '',
+      }),
+    );
+    w.clock.t = new Date('2026-10-21T11:00:30+05:30');
+    await runRound(w.deps, season, '2026-10-21', '11:00', 'cron');
+    expect(
+      (
+        await w.db.query(
+          "SELECT count(*)::int AS n FROM positions WHERE participant_id = 'S0-anthropic'",
+        )
+      ).rows[0].n,
+    ).toBe(0);
+    await retire(w.db, 'anthropic', 'model removed from OpenRouter', 'tester');
+    w.clock.t = new Date('2026-10-21T12:30:30+05:30');
+    const s = await runRound(w.deps, season, '2026-10-21', '12:30', 'cron');
+    expect(s.participants.find((p) => p.slot === 'anthropic')).toMatchObject({
+      status: 'RETIRED',
+    });
+    expect(await retires('S0-anthropic')).toBe(1);
+    const last = (
+      await w.db.query(
+        "SELECT entry_type, cash_delta_paise FROM ledger WHERE participant_id = 'S0-anthropic' ORDER BY seq DESC LIMIT 1",
+      )
+    ).rows[0];
+    expect(last).toEqual({ entry_type: 'RETIRE', cash_delta_paise: '0' });
+    expect(
+      (
+        await replayRound(
+          w.db,
+          s.roundId!,
+          w.deps.arena,
+          w.deps.fees,
+          w.deps.universe.constituents.map((c) => c.symbol),
+        )
+      ).mismatches,
+    ).toEqual([]);
+    // Later rounds leave both retired models alone: no second RETIRE, no decision.
+    w.clock.t = new Date('2026-10-21T14:00:30+05:30');
+    const s2 = await runRound(w.deps, season, '2026-10-21', '14:00', 'cron');
+    expect(await retires('S0-anthropic')).toBe(1);
+    expect(await retires('S0-meta')).toBe(1);
+    expect(
+      (
+        await w.db.query(
+          "SELECT count(*)::int AS n FROM decisions WHERE round_id = $1 AND participant_id IN ('S0-anthropic','S0-meta')",
+          [s2.roundId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+    // The retired models reconcile. (Google's correction above is dated by the real clock, after
+    // this test world's simulated rounds, so its mark check is not meaningful here.)
+    const problems = (await reconcile(w.db, 'S0', null)).problems;
+    expect(problems.filter((x) => /anthropic|meta/.test(x))).toEqual([]);
   });
 });
