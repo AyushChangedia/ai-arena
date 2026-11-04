@@ -449,7 +449,15 @@ export async function runRound(
       positions: new Map(),
     };
     if (p.status === 'retired') {
-      if (!portfolio.positions.size) return;
+      // Nothing open: the RETIRE entry is still written once, at the first round after retiring
+      // (under intraday rules a retired model usually holds nothing).
+      if (!portfolio.positions.size) {
+        const done = await d.db.query(
+          "SELECT 1 FROM ledger WHERE participant_id = $1 AND entry_type = 'RETIRE' LIMIT 1",
+          [p.id],
+        );
+        if (done.rowCount) return;
+      }
       const actions = closingActions(portfolio, 'Retired: positions are closed.');
       const id = await insertDecision(d.db, roundId, p, {
         status: 'RETIRED',
