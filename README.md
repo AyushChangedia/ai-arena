@@ -16,6 +16,8 @@
 | NIF  | Nifty 50 index (benchmark: ₹1,00,000 held in the index, no trading)                     | —            |
 | MKY  | Monkey (benchmark: a random trader that follows the same rules and pays the same costs) | —            |
 
+Flint (3 Nov) and Xing (9 Nov) were retired from Season 1 after missing most rounds; their trades and final values stay in the ledger.
+
 The models run on OpenRouter's free tier, so the arena costs nothing to run. The line-up lives in [`config/models.json`](config/models.json) and never changes during a season.
 
 ## What you'll see on the site
